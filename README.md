@@ -16,4 +16,4 @@ API REST centralizada desarrollada en **.NET (C#)** para el sistema **GarajeMetr
 ## Configuración y Ejecución
 1. Clona el repositorio:
    ```bash
-   git clone [https://github.com/tu-usuario/garajemetria-backend.git](https://github.com/tu-usuario/garajemetria-backend.git)
+   git clone [https://github.com/tu-usuario/garajemetria-backend.git](https://github.com/milkorivas/garajemetria-backend.git)
