@@ -1,6 +1,6 @@
 # GarageMetrics Backend
 
-API REST centralizada desarrollada en **.NET (C#)** para el sistema **GarajeMetría**. Su función principal es recibir los eventos de lectura de matrículas (LPR) enviados desde los diferentes equipos locales (*Desde una app o desde Hardware especializado*) instalados en los talleres, procesar las reglas de negocio (tiempos de estancia, entradas y salidas), persistir los datos en SQL Server y servir como backend para la consulta y administración de la información desde el panel web de frontend (permitiendo visualizar registros en tiempo real, modificar datos y realizar operaciones de gestión).
+API REST centralizada desarrollada en **.NET (C#)** para el sistema **GarajeMetría**. Su función principal es recibir los eventos de lectura de matrículas (LPR) enviados desde los diferentes equipos locales (*Desde una app o desde Hardware especializado*) instalados en talleres mecánicos, procesar las reglas de negocio (tiempos de estancia, entradas y salidas), persistir los datos en SQL Server y servir como backend para la consulta y administración de la información desde el panel web de frontend (permitiendo visualizar registros en tiempo real, modificar datos y realizar operaciones de gestión).
 
 ## Tecnologías Principales
 * **.NET 8.0+ / C#**
