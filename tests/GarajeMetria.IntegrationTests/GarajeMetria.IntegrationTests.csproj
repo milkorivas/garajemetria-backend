@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
+    <ProjectReference Include="../../src/GarajeMetria.Api/GarajeMetria.Api.csproj" />
+    <ProjectReference Include="../../src/GarajeMetria.Infrastructure/GarajeMetria.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

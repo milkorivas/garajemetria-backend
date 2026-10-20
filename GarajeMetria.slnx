@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GarajeMetria.Api/GarajeMetria.Api.csproj" />
+    <Project Path="src/GarajeMetria.Application/GarajeMetria.Application.csproj" />
+    <Project Path="src/GarajeMetria.Domain/GarajeMetria.Domain.csproj" />
+    <Project Path="src/GarajeMetria.Infrastructure/GarajeMetria.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GarajeMetria.Application.Tests/GarajeMetria.Application.Tests.csproj" />
+    <Project Path="tests/GarajeMetria.ArchitectureTests/GarajeMetria.ArchitectureTests.csproj" />
+    <Project Path="tests/GarajeMetria.Domain.Tests/GarajeMetria.Domain.Tests.csproj" />
+    <Project Path="tests/GarajeMetria.IntegrationTests/GarajeMetria.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

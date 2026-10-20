@@ -1,0 +1,55 @@
+{
+  "ConnectionStrings": {
+    "Authentication": "<connection-string-for-the-target-environment>"
+  },
+  "Directory": {
+    "Servers": ["<ldaps-server-fqdn>"],
+    "Port": 636,
+    "SearchBase": "<domain-search-base-dn>",
+    "ServiceBindDn": "<read-only-service-account-dn>",
+    "ServicePassword": "<external-secret>",
+    "TimeoutSeconds": 10,
+    "AdministratorGroupDn": "<dn-of-web_GarajeMetria_Admin>",
+    "AdvisorGroupDn": "<dn-of-web_GarajeMetria_Advisor>"
+  },
+  "Jwt": {
+    "Issuer": "https://api.garajemetria.com",
+    "AccessAudience": "GarajeMetria.Api.Access",
+    "RefreshAudience": "GarajeMetria.Api.Refresh",
+    "ClockSkewSeconds": 0,
+    "SigningCertificatePath": "<absolute-external-path-to-rsa-pfx>",
+    "SigningCertificatePassword": "<external-secret>",
+    "SigningKeyId": "<configured-key-id>",
+    "VerificationKeys": []
+  },
+  "Http": {
+    "AllowedOrigins": ["https://garajemetria.com", "https://api.garajemetria.com"],
+    "TrustedProxies": [],
+    "DataProtectionKeyPath": "<absolute-external-shared-key-directory>",
+    "DataProtectionCertificatePath": "<absolute-external-path-to-protection-pfx>",
+    "DataProtectionCertificatePassword": "<external-secret>",
+    "EnableApiDocumentation": false
+  },
+  "Authentication": {
+    "DefaultDomain": "<single-corporate-domain>",
+    "AllowedDomains": ["<single-corporate-domain>"],
+    "AccessTokenLifetimeSeconds": 600,
+    "RefreshTokenLifetimeSeconds": 1800,
+    "MaxSessionLifetimeSeconds": 28800,
+    "MaxUsernameLength": 256,
+    "MaxPasswordLength": 1024,
+    "MaxLoginBodyBytes": 16384,
+    "MaxJsonDepth": 2,
+    "RateLimitNamespace": "<shared-api-environment-namespace>",
+    "LoginIpLimit": 300,
+    "LoginUserLimit": 5,
+    "RefreshIpLimit": 600,
+    "RefreshUserLimit": 10,
+    "RateLimitWindowSeconds": 60,
+    "SessionRetentionDays": 30,
+    "RefreshRetentionHoursAfterSessionEnd": 24,
+    "AuditRetentionDays": 365,
+    "CleanupIntervalHours": 24,
+    "CleanupBatchSize": 100
+  }
+}
