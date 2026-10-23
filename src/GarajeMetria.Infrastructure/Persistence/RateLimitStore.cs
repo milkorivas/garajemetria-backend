@@ -1,11 +1,13 @@
 using System.Security.Cryptography;
 using System.Text;
 using GarajeMetria.Application.Authentication;
+using GarajeMetria.Application.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 
 namespace GarajeMetria.Infrastructure.Persistence;
 
-internal sealed class RateLimitStore(AuthenticationDbContext db, AuthenticationOptions options) : IAuthenticationRateLimitStore
+internal sealed class RateLimitStore(AuthenticationDbContext db, AuthenticationOptions options,
+    IAuthenticationAvailability availability) : IAuthenticationRateLimitStore
 {
     internal static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     internal static string Fingerprint(AuthenticationOptions o) => Hash(string.Join(':', o.LoginIpLimit, o.LoginUserLimit,
@@ -23,6 +25,7 @@ internal sealed class RateLimitStore(AuthenticationDbContext db, AuthenticationO
 
     public async Task<RateDecision> AdmitAsync(RatePolicy policy, string subject, CancellationToken cancellationToken)
     {
+        if (!await availability.IsAvailableAsync(cancellationToken)) throw new PersistenceFailureException(FailureCode.ServiceUnavailable);
         if (policy != options.Policy(policy.Name)) throw new InvalidOperationException("The requested quota differs from configured policy.");
         var key = Hash(options.RateLimitNamespace + "\n" + policy.Name + "\n" + subject);
         return await SqlTransactions.ExecuteAsync(db, "authentication:quota:" + key, async ct =>

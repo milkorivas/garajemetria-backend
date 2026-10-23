@@ -990,7 +990,12 @@ fallbacks silenciosos del código. Validar opciones tipadas al arrancar:
 duraciones y límites positivos, unidades explícitas, emisor y audiencias,
 configuración de firma y LDAPS, dominio predeterminado permitido y parámetros
 obligatorios completos. La ausencia o invalidez impide el arranque y genera un
-diagnóstico sin secretos.
+diagnóstico sin secretos, salvo SQL: su configuración ausente o inválida y su
+indisponibilidad permiten iniciar el host para consultar `/api/health`.
+La política compartida se verifica en segundo plano cada 30 segundos; hasta
+verificarla correctamente, las operaciones HTTP dependientes de SQL devuelven
+`503`, sin omitir cuotas ni persistencia. La conectividad recuperada permite
+reanudar operaciones sin reiniciar; cambiar el archivo privado requiere reinicio.
 
 Validar las opciones de entrada conforme al presupuesto y las restricciones
 establecidas en 4.1; no introducir reglas locales de fortaleza de contraseña.
@@ -1088,7 +1093,7 @@ Los contratos técnicos de las secciones anteriores siguen siendo obligatorios.
 | CP-032 | CA-007 | renovaciones sucesivas con reloj determinista. | Renovar una sesión no modifica su inicio ni su límite absoluto, calculado desde el login con la duración máxima del archivo de configuración. |
 | CP-033 | CA-007 | límite absoluto de sesión y nuevo login. | Al alcanzar la duración máxima de la sesión, se rechazan operaciones protegidas y renovaciones, incluso con tokens cuya expiración individual sea posterior. Solo un nuevo login permite crear otra sesión. |
 | CP-034 | CA-007 | expiración de tokens de refrescamiento al inicio y cerca del límite de sesión, con reloj determinista. | El token de refrescamiento emitido en el login o en una renovación expira en el menor instante entre su emisión más la duración configurada y el límite absoluto de la sesión. |
-| CP-035 | CA-017 | configuración incompleta o inválida. | La configuración obligatoria ausente o inválida impide el arranque y produce un diagnóstico en logs sin secretos. |
+| CP-035 | CA-017 | configuración incompleta o inválida. | La configuración obligatoria no SQL ausente o inválida impide el arranque y produce un diagnóstico sin secretos; SQL ausente, inválido o inaccesible permite consultar health y mantiene las operaciones dependientes cerradas con 503 hasta verificar las políticas compartidas. |
 | CP-036 | CA-004 | autenticación rechazada sin divulgación de información. | Credenciales incorrectas y dominio no permitido producen el mensaje genérico «No se pudo iniciar sesión», sin detalles del rechazo. |
 | CP-037 | CA-004 | separación entre autenticación y autorización. | Tras autenticar las credenciales, la ausencia de rol o de taller para un Asesor produce el mensaje descriptivo correspondiente de 4.3, sin tokens. Esos mensajes no se muestran si las credenciales no son válidas. |
 | CP-038 | CA-014 | mensaje de indisponibilidad en ambos flujos. | La indisponibilidad de Active Directory produce el mensaje temporal de 4.3 tanto en login como en renovación, respetando RN-013 en esta última. |

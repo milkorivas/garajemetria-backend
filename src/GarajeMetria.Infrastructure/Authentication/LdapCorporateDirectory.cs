@@ -65,7 +65,7 @@ public sealed class LdapCorporateDirectory(DirectoryOptions options) : ICorporat
         }
     }
 
-    private static LdapConnection NewConnection()
+    internal static LdapConnection NewConnection()
     {
         // Preserve chain, host and revocation validation using the library's async TLS support.
         return new LdapConnection(new LdapConnectionOptions().UseSsl().CheckCertificateRevocation()

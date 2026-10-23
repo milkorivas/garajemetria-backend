@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using GarajeMetria.Api.Authentication;
+using GarajeMetria.Api.Diagnostics;
 using GarajeMetria.Application;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -56,6 +57,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
     foreach (var proxy in http.TrustedProxies) o.KnownProxies.Add(IPAddress.Parse(proxy));
 });
 builder.Services.AddOpenApi(o => o.AddOperationTransformer<AuthenticationOpenApi>());
+builder.Services.AddHealthDiagnostics();
 var app = builder.Build();
 app.UseExceptionHandler();
 if (http.TrustedProxies.Length > 0) app.UseForwardedHeaders();
@@ -67,9 +69,12 @@ if (http.EnableApiDocumentation)
 }
 app.UseRouting();
 app.UseCors();
+app.UseRateLimiter();
+app.UseMiddleware<AuthenticationAvailabilityMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapAuthenticationEndpoints();
+app.MapHealthEndpoints();
 app.Run();
 
 public partial class Program;

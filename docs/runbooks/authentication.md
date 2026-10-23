@@ -28,7 +28,23 @@ Guardar el JSON privado fuera del contenido de la aplicación y del repositorio.
 por chat, logs, argumentos de consola ni documentación versionada.
 No se recarga dinámicamente: cambiar configuración requiere reiniciar y coordinar
 las instancias cuando corresponda. La API valida opciones y material de firma,
-y verifica la política compartida en SQL antes de admitir tráfico.
+y verifica la política compartida en SQL antes de admitir operaciones que
+dependan de ella. Esta verificación ya no bloquea el arranque del host: se
+ejecuta en segundo plano y se repite cada 30 segundos. SQL ausente, inválido o
+inaccesible mantiene esas operaciones cerradas con `503`; no se omiten cuotas
+ni se crean sesiones sin persistencia. Si se recupera la conexión configurada,
+la siguiente verificación correcta permite reanudar la operación sin reiniciar.
+Los cambios del archivo privado siguen requiriendo reinicio.
+
+Para diagnosticar, consultar `GET /api/health` por HTTPS sin sesión ni bootstrap.
+Devuelve estados independientes de servicio, SQL y AD: `OK`, `ERROR` o
+`NOT_CONFIGURED`. Solo todos en `OK` producen HTTP `200`; el resto produce `503`
+con el mismo JSON. SQL sin cadena produce `NOT_CONFIGURED`; cadena inválida o
+conexión/consulta fallida produce `ERROR`. AD comprueba LDAPS y bind de servicio,
+sin autenticar usuarios. Cada comprobación tiene un máximo de cinco segundos.
+El diagnóstico no revela configuración y admite 60 peticiones/minuto por
+instancia, después devuelve `429` ProblemDetails. La configuración no SQL y
+los certificados siguen siendo obligatorios. Véase el ejemplo en README.
 
 El certificado JWT es RSA de al menos 2.048 bits y contiene clave privada.
 `SigningKeyId` identifica la clave actual. `VerificationKeys` admite certificados

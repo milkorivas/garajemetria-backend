@@ -53,7 +53,10 @@ Instalar el SDK .NET 10.0.401 o un parche compatible según global.json.
 Preparar SQL Server, aplicar la migración revisada y configurar certificados y
 el archivo privado externo indicado por `GARAJEMETRIA_PRIVATE_CONFIG`, según el
 [runbook de autenticación](docs/runbooks/authentication.md). La API rechaza
-configuración ausente o inválida y no aplica migraciones al arrancar.
+configuración obligatoria ajena a SQL ausente o inválida y no aplica migraciones
+al arrancar. SQL ausente, inválido o inaccesible permite iniciar el host para
+diagnosticarlo; la autenticación dependiente de SQL devuelve `503` hasta verificar
+las políticas compartidas. La comprobación se repite cada 30 segundos.
 
 ```sh
 dotnet restore
@@ -102,5 +105,41 @@ sin presentarla como verificada. Los prerrequisitos y la evidencia se mantienen
 en el runbook y TASKS-001.
 
 Con `Http:EnableApiDocumentation=true`, consultar `/openapi/v1.json` y
-`/swagger/index.html` por HTTPS. Swagger UI permite explorar los cuatro endpoints;
-bootstrap y cabecera antiforgery siguen siendo obligatorios para los POST.
+`/swagger/index.html` por HTTPS. Swagger UI permite explorar los cuatro endpoints
+de autenticación y el diagnóstico; bootstrap y cabecera antiforgery siguen siendo
+obligatorios para los POST.
+
+## Diagnóstico del servicio
+
+Consultar sin sesión por HTTPS:
+
+```sh
+curl https://localhost:7040/api/health
+```
+
+Ejemplo con SQL sin configurar y AD disponible:
+
+```json
+{
+  "status": "ERROR",
+  "modules": {
+    "service": { "status": "OK" },
+    "sql": { "status": "NOT_CONFIGURED" },
+    "activeDirectory": { "status": "OK" }
+  }
+}
+```
+
+Cada módulo devuelve `OK`, `ERROR` o `NOT_CONFIGURED`. La respuesta es `200` y el
+estado global `OK` solo si todos están disponibles; en otro caso es `503` y
+`ERROR`, con el mismo contrato JSON y `Cache-Control: no-store`.
+SQL ejecuta una consulta mínima de lectura; una cadena inválida o una conexión
+fallida devuelve `ERROR`. AD realiza conexión LDAPS y bind con la cuenta de
+servicio, sin consultar usuarios. Cada comprobación tiene un máximo de cinco
+segundos y ambas se ejecutan independientemente. El servicio indica que la API
+responde; no certifica todos sus casos de uso, el esquema SQL ni permisos de AD.
+Se admiten 60 peticiones por minuto por instancia; los excesos reciben `429`
+ProblemDetails. No se devuelven detalles internos ni secretos.
+La configuración privada, los certificados y las opciones no SQL siguen siendo
+obligatorios. Cambiar el archivo privado requiere reiniciar; recuperar la
+conectividad de un SQL ya configurado no requiere reinicio.

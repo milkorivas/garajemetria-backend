@@ -1,5 +1,7 @@
 using GarajeMetria.Application.Authentication;
+using GarajeMetria.Application.Diagnostics;
 using GarajeMetria.Infrastructure.Authentication;
+using GarajeMetria.Infrastructure.Diagnostics;
 using GarajeMetria.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -12,8 +14,6 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        var connection = configuration.GetConnectionString("Authentication");
-        if (string.IsNullOrWhiteSpace(connection)) throw new InvalidOperationException("Required SQL configuration is missing.");
         var directory = configuration.GetRequiredSection("Directory").Get<DirectoryOptions>() ?? new();
         var jwt = configuration.GetRequiredSection("Jwt").Get<JwtOptions>() ?? new();
         if (directory.Servers.Length == 0 || directory.Servers.Any(string.IsNullOrWhiteSpace) || directory.Port != 636 ||
@@ -28,8 +28,20 @@ public static class DependencyInjection
         services.AddSingleton(directory);
         services.AddSingleton(jwt);
         services.TryAddSingleton(TimeProvider.System);
-        services.AddDbContext<AuthenticationDbContext>(o => o.UseSqlServer(connection, sql => sql.CommandTimeout(15))
-            .AddInterceptors(new PersistenceErrorInterceptor(), new PersistenceConnectionInterceptor()));
+        services.AddDbContext<AuthenticationDbContext>(o =>
+        {
+            try
+            {
+                var connection = configuration.GetConnectionString("Authentication");
+                if (string.IsNullOrWhiteSpace(connection)) throw new PersistenceFailureException(FailureCode.ServiceUnavailable);
+                o.UseSqlServer(connection, sql => sql.CommandTimeout(15))
+                    .AddInterceptors(new PersistenceErrorInterceptor(), new PersistenceConnectionInterceptor());
+            }
+            catch (ArgumentException ex) { throw new PersistenceFailureException(FailureCode.ServiceUnavailable, ex); }
+        });
+        services.AddSingleton<AuthenticationAvailability>();
+        services.AddSingleton<IAuthenticationAvailability>(sp => sp.GetRequiredService<AuthenticationAvailability>());
+        services.AddScoped<IHealthDiagnostics, HealthDiagnostics>();
         services.AddScoped<AuthenticationRepository>();
         services.AddScoped<IUserAccessQuery>(sp => sp.GetRequiredService<AuthenticationRepository>());
         services.AddScoped<IAuthenticationSessionRepository>(sp => sp.GetRequiredService<AuthenticationRepository>());

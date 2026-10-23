@@ -200,7 +200,7 @@ public sealed class HttpAuthenticationTests(SqlFixture database) : IClassFixture
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var paths = document.RootElement.GetProperty("paths");
-        Assert.Equal(4, paths.EnumerateObject().Count());
+        Assert.Equal(5, paths.EnumerateObject().Count());
         Assert.True(paths.GetProperty("/api/auth/login").GetProperty("post").GetProperty("responses").TryGetProperty("503", out _));
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/swagger/index.html")).StatusCode);
     }

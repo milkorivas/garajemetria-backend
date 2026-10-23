@@ -7,15 +7,40 @@ using Microsoft.Extensions.Logging;
 
 namespace GarajeMetria.Infrastructure.Authentication;
 
-internal sealed class SharedPolicyStartup(IServiceScopeFactory scopes, ITokenService tokens) : IHostedService
+internal sealed class SharedPolicyStartup(IServiceScopeFactory scopes, ITokenService tokens,
+    AuthenticationAvailability availability, ILogger<SharedPolicyStartup> logger) : BackgroundService
 {
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public override async Task StartAsync(CancellationToken cancellationToken)
     {
         _ = tokens; // Resolve and validate signing material before enabling the host.
-        using var scope = scopes.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<RateLimitStore>().VerifyConfigurationAsync(cancellationToken);
+        await base.StartAsync(cancellationToken);
     }
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                timeout.CancelAfter(TimeSpan.FromSeconds(15));
+                using var scope = scopes.CreateScope();
+                await scope.ServiceProvider.GetRequiredService<RateLimitStore>().VerifyConfigurationAsync(timeout.Token);
+                availability.SetAvailable(true);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                availability.SetAvailable(false);
+                break;
+            }
+            catch (Exception)
+            {
+                availability.SetAvailable(false);
+                logger.LogWarning("Authentication SQL policy verification unavailable; SQL-dependent requests remain closed.");
+            }
+            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+        }
+    }
 }
 
 internal sealed class AuthenticationCleanupService(IServiceScopeFactory scopes, ILogger<AuthenticationCleanupService> logger)

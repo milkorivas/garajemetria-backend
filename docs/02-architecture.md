@@ -164,6 +164,38 @@ estructurados y tienen identificadores de correlación; los health checks no
 exponen detalles internos. El archivo privado externo y los contratos exactos
 de autenticación se definen en
 [DESIGN-001](design/DESIGN-001-authentication.md).
+
+`GET /api/health` es un diagnóstico operativo anónimo: debe poder consultarse
+cuando SQL o el login no estén disponibles. Se excluye del procesamiento Bearer
+y devuelve únicamente estados genéricos, sin datos internos. Su contrato contiene
+`status` global y `modules.service`, `modules.sql`, `modules.activeDirectory`, cada
+uno con `status`: `OK`, `ERROR` o `NOT_CONFIGURED`. Todos disponibles producen
+HTTP `200` y estado global `OK`; cualquier otro resultado produce `503` y
+`ERROR`, conservando el mismo JSON. Estos fallos son resultados del diagnóstico;
+los errores inesperados usan ProblemDetails. Las respuestas no se almacenan en
+caché. Un límite local de 60 peticiones/minuto por instancia devuelve `429`
+ProblemDetails sin depender de SQL.
+
+Api posee transporte y DTOs; una consulta MediatR de Application coordina los
+contratos de diagnóstico implementados por Infrastructure. SQL abre la conexión
+configurada y ejecuta `SELECT 1` sin escrituras; ausencia de cadena produce
+`NOT_CONFIGURED`, cadena inválida o consulta fallida produce `ERROR`. AD conecta
+por LDAPS y realiza bind con la cuenta de servicio, con la validación de
+certificados y servidores alternativos existentes, sin consultar usuarios.
+SQL y AD se comprueban independientemente, con cancelación HTTP y un máximo de
+cinco segundos por módulo. El estado del servicio acredita que la API responde,
+no la corrección integral de sus funciones.
+
+La ausencia, invalidez o indisponibilidad de SQL ya no impide arrancar el host.
+La verificación de políticas compartidas se ejecuta en un servicio supervisado
+con comprobaciones cada 30 segundos; las operaciones HTTP dependientes de SQL
+devuelven `503` hasta la primera verificación correcta y mientras se detecte un
+fallo posterior. No hay almacenamiento alternativo ni relajación de cuotas.
+La recuperación de conectividad permite reanudar operaciones sin reinicio;
+cambiar la configuración privada sí requiere reiniciar. Las demás validaciones
+de configuración y certificados siguen siendo obligatorias y no se aplican
+migraciones al arrancar.
+
 Los roles y el acceso a talleres se desarrollan en
 [DESIGN-002](design/DESIGN-002-roles-and-workshop-access.md).
 Los plazos de retención se mantienen en sus documentos correspondientes.
