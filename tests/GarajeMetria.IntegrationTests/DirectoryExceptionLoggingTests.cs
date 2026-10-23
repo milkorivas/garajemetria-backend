@@ -45,7 +45,7 @@ public sealed class DirectoryExceptionLoggingTests
     {
         var logs = new RecordingLogProvider();
         using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
-        factory.CreateLogger("DirectoryTest").LogDirectoryException(LogLevel.Information, "ActiveDirectory.UserBindRejected",
+        factory.CreateLogger("DirectoryTest").LogDirectoryException(LogLevel.Information, "ActiveDirectory.UserBind",
             new LdapException("private-user", 49, "private-diagnostic"), serviceAccount: false);
         var entry = Assert.Single(logs.Entries);
         Assert.Equal("Active Directory rechazó las credenciales de la cuenta de usuario.", entry.Properties["Description"]);

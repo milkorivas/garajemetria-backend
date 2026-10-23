@@ -8,13 +8,13 @@ namespace GarajeMetria.Infrastructure.Diagnostics;
 internal static class DirectoryExceptionLogging
 {
     public static void LogDirectoryException(this ILogger logger, LogLevel level, string operation, Exception exception,
-        bool serviceAccount = true)
+        bool serviceAccount = true, string? groupRole = null)
     {
         var (reason, description, subCode) = Describe(operation, exception, serviceAccount);
         logger.Log(level,
-            "Active Directory failure: {Description}; operation={Operation}, reason={Reason}, exceptionType={ExceptionType}, causeType={CauseType}, errorCode={ErrorCode}, adSubCode={AdSubCode}",
+            "Active Directory failure: {Description}; operation={Operation}, reason={Reason}, exceptionType={ExceptionType}, causeType={CauseType}, errorCode={ErrorCode}, adSubCode={AdSubCode}, groupRole={GroupRole}",
             description, operation, reason, exception.GetType().Name, exception.GetBaseException().GetType().Name,
-            exception is LdapException ldap ? (int?)ldap.ResultCode : null, subCode);
+            exception is LdapException ldap ? (int?)ldap.ResultCode : null, subCode, groupRole);
     }
 
     private static (string Reason, string Description, string? SubCode) Describe(string operation, Exception exception, bool serviceAccount)
@@ -46,10 +46,12 @@ internal static class DirectoryExceptionLogging
             return ("tls_validation_failed", "No se pudo establecer una sesión TLS válida con Active Directory.", null);
         return exception switch
         {
+            LdapException { ResultCode: 10 } => ("referral_received", "Active Directory devolvió una referencia a otra ubicación LDAP; no se pudo completar la consulta.", null),
             LdapException { ResultCode: 50 } => ("insufficient_permissions", "Active Directory denegó la operación por permisos insuficientes.", null),
             LdapException { ResultCode: 51 } => ("server_busy", "Active Directory está ocupado y no pudo completar la operación.", null),
             LdapException { ResultCode: 52 } => ("server_unavailable", "Active Directory indicó que el servicio no está disponible.", null),
-            _ when operation.EndsWith(".Connect", StringComparison.Ordinal) || exception.GetBaseException() is IOException or System.Net.Sockets.SocketException =>
+            _ when operation.EndsWith(".Connect", StringComparison.Ordinal) || operation.EndsWith(".UserConnect", StringComparison.Ordinal) ||
+                exception.GetBaseException() is IOException or System.Net.Sockets.SocketException =>
                 ("connection_failed", "No se pudo establecer o mantener la conexión LDAPS con Active Directory.", null),
             _ => ("directory_error", "No se pudo completar la operación con Active Directory.", null)
         };

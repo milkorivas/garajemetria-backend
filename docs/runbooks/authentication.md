@@ -249,6 +249,29 @@ Un diagnóstico desconocido, ambiguo o demasiado largo conserva la explicación
 genérica y no emite su subcódigo. TLS, conexión, timeout y cancelación tienen
 explicaciones propias. La respuesta pública de health y los niveles no cambian.
 
+El adaptador de login y relectura de sesión identifica cada etapa en `Operation`:
+`ActiveDirectory.UserSearch` (búsqueda), `UserConnect` (conexión del usuario),
+`UserBind` (validación de credenciales), `UserRead` (relectura tras el bind),
+`UserAttributes` (estado de cuenta), `GroupLookup` (lectura del grupo),
+`GroupMembership` (pertenencia) y `UserProfile` (perfil final). Las etapas de
+grupos incluyen `GroupRole=Administrator` o `Advisor`, sin nombres ni DN.
+Los inicios de etapa se registran en Debug; los fallos conservan la etapa
+exacta incluso en timeout/cancelación. `ReadOrAuthenticate` y `UserBindRejected`
+se sustituyen por estas operaciones específicas. El estado de etapa pertenece
+a cada llamada, para no mezclar peticiones concurrentes del adaptador singleton.
+Para ver también los inicios, configurar en `Serilog:MinimumLevel:Override`
+la categoría `GarajeMetria.Infrastructure.Authentication.LdapCorporateDirectory`
+como `Debug`. Los errores con la etapa exacta siguen visibles con el nivel habitual.
+
+LDAP 10 se describe como `referral_received`: AD devolvió una referencia a otra
+ubicación LDAP. Usuarios y grupos de este despliegue pertenecen al mismo dominio;
+eso no elimina necesariamente las referencias de una búsqueda bajo su raíz.
+No se siguen ni ignoran automáticamente nuevas referencias, ni se amplían
+servidores, puertos o alcance de búsqueda. El fallo mantiene el cierre de acceso
+y la respuesta actuales. Usar la etapa registrada para comprobar después el
+servidor, `SearchBase` y las ubicaciones de los grupos, sin publicar sus valores
+en logs. No se registran las URL de las referencias.
+
 También hay eventos seguros para JWT, JSON y antiforgery rechazados, failover
 LDAP, cancelaciones y fallos secundarios de rollback/liberación. Un fallo que
 escapa después de iniciar la respuesta se registra y propaga sin intentar
