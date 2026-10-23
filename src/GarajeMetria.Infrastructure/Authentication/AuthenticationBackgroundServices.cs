@@ -1,4 +1,5 @@
 using GarajeMetria.Application.Authentication;
+using GarajeMetria.Application.Diagnostics;
 using GarajeMetria.Infrastructure.Persistence;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,17 +29,23 @@ internal sealed class SharedPolicyStartup(IServiceScopeFactory scopes, ITokenSer
                 await scope.ServiceProvider.GetRequiredService<RateLimitStore>().VerifyConfigurationAsync(timeout.Token);
                 availability.SetAvailable(true);
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            catch (OperationCanceledException ex) when (stoppingToken.IsCancellationRequested)
             {
+                logger.LogSafeException(LogLevel.Information, "AuthenticationPolicy.Cancelled", ex);
                 availability.SetAvailable(false);
                 break;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 availability.SetAvailable(false);
-                logger.LogWarning("Authentication SQL policy verification unavailable; SQL-dependent requests remain closed.");
+                logger.LogSafeException(LogLevel.Warning, "AuthenticationPolicy.Verification", ex);
             }
-            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+            try { await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken); }
+            catch (OperationCanceledException ex) when (stoppingToken.IsCancellationRequested)
+            {
+                logger.LogSafeException(LogLevel.Information, "AuthenticationPolicy.WaitCancelled", ex);
+                break;
+            }
         }
     }
 }
@@ -50,10 +57,11 @@ internal sealed class AuthenticationCleanupService(IServiceScopeFactory scopes, 
     {
         var owner = Guid.NewGuid().ToString("N");
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1));
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                if (!await timer.WaitForNextTickAsync(stoppingToken)) break;
                 CleanupResult result;
                 do
                 {
@@ -64,8 +72,12 @@ internal sealed class AuthenticationCleanupService(IServiceScopeFactory scopes, 
                         result.RefreshRecords, result.Sessions, result.AuditEntries);
                 } while (result.More && !stoppingToken.IsCancellationRequested);
             }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
-            catch (Exception) { logger.LogError("Authentication cleanup could not complete its batch; no completion was recorded."); }
+            catch (OperationCanceledException ex) when (stoppingToken.IsCancellationRequested)
+            {
+                logger.LogSafeException(LogLevel.Information, "AuthenticationCleanup.Cancelled", ex);
+                break;
+            }
+            catch (Exception ex) { logger.LogSafeException(LogLevel.Error, "AuthenticationCleanup.Batch", ex); }
         }
     }
 }

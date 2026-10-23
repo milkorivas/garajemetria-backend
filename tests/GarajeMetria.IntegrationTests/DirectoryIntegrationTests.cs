@@ -6,7 +6,12 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
 using GarajeMetria.Application.Authentication;
+using GarajeMetria.Application.Diagnostics;
 using GarajeMetria.Infrastructure.Authentication;
+using GarajeMetria.Infrastructure.Diagnostics;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace GarajeMetria.IntegrationTests;
 
@@ -28,9 +33,13 @@ public sealed class DirectoryIntegrationTests
         Assert.Equal("\\C3\\BC", LdapCorporateDirectory.EscapeFilter("ü"));
     }
 
-    [Fact]
-    public async Task LdapsRejectsAnUntrustedServerCertificateBeforeSendingTheServicePassword()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LdapsRejectsAnUntrustedServerCertificateBeforeSendingTheServicePasswordAndLogsTheFailure(bool healthProbe)
     {
+        var logs = new RecordingLogProvider();
+        using var logFactory = LoggerFactory.Create(b => b.AddProvider(logs));
         using var key = RSA.Create(2048);
         var request = new CertificateRequest("CN=untrusted-synthetic-server", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
@@ -39,17 +48,34 @@ public sealed class DirectoryIntegrationTests
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         var server = ObserveAsync();
-        var directory = new LdapCorporateDirectory(new DirectoryOptions
+        var options = new DirectoryOptions
         {
             Servers = ["127.0.0.1"],
             Port = port,
             TimeoutSeconds = 5,
             ServiceBindDn = "CN=synthetic",
             ServicePassword = "synthetic-only"
-        });
-        var result = await directory.ReadAsync(Guid.NewGuid(), timeout.Token);
-        Assert.Equal(DirectoryStatus.Unavailable, result.Status);
+        };
+        if (healthProbe)
+        {
+            var diagnostics = new HealthDiagnostics(new ConfigurationBuilder().Build(), options, logFactory.CreateLogger<HealthDiagnostics>());
+            Assert.Equal(ModuleStatus.Error, await diagnostics.CheckActiveDirectoryAsync(timeout.Token));
+        }
+        else
+        {
+            var directory = new LdapCorporateDirectory(options, logFactory.CreateLogger<LdapCorporateDirectory>());
+            var result = await directory.ReadAsync(Guid.NewGuid(), timeout.Token);
+            Assert.Equal(DirectoryStatus.Unavailable, result.Status);
+        }
         Assert.Equal(0, await server);
+        var entry = Assert.Single(logs.Entries);
+        Assert.True(entry.Properties.ContainsKey("ExceptionType"));
+        Assert.True(entry.Properties.ContainsKey("Reason"));
+        Assert.True(entry.Properties.ContainsKey("Description"));
+        Assert.Contains("Connect", entry.Properties["Operation"]!.ToString());
+        Assert.DoesNotContain(options.ServicePassword, entry.Message);
+        Assert.DoesNotContain(options.ServiceBindDn, entry.Message);
+        Assert.Null(entry.Exception);
         async Task<int> ObserveAsync()
         {
             using var client = await listener.AcceptTcpClientAsync(timeout.Token);
@@ -69,7 +95,7 @@ public sealed class DirectoryIntegrationTests
         var path = Environment.GetEnvironmentVariable("GARAJEMETRIA_AD_TEST_CONFIG")!;
         var configuration = JsonSerializer.Deserialize<DirectoryTestConfiguration>(await File.ReadAllTextAsync(path))!;
         Assert.True(configuration.ConfirmedIsolatedTestDirectory);
-        var adapter = new LdapCorporateDirectory(configuration.Directory);
+        var adapter = new LdapCorporateDirectory(configuration.Directory, NullLogger<LdapCorporateDirectory>.Instance);
         foreach (var account in configuration.Accounts)
         {
             var authenticated = await adapter.AuthenticateAsync(account.Username, account.Password, default);

@@ -37,7 +37,9 @@ public sealed class ApiExceptionHandler(ILogger<ApiExceptionHandler> logger) : I
             PersistenceFailureException persistence => persistence.Code,
             _ => FailureCode.InternalError
         };
-        logger.LogWarning("Request failed: category={Category}, trace={TraceId}", code, context.TraceIdentifier);
+        logger.Log(exception is PersistenceFailureException ? LogLevel.Warning : LogLevel.Error,
+            "Request failed: category={Category}, exceptionType={ExceptionType}, causeType={CauseType}, request={RequestId}",
+            code, exception.GetType().Name, exception.GetBaseException().GetType().Name, context.TraceIdentifier);
         await ApiProblems.WriteAsync(context, new(code));
         return true;
     }

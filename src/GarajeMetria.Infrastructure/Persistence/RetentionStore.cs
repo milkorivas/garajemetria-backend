@@ -1,9 +1,10 @@
 using GarajeMetria.Application.Authentication;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace GarajeMetria.Infrastructure.Persistence;
 
-internal sealed class RetentionStore(AuthenticationDbContext db, AuthenticationOptions options) : IAuthenticationRetentionStore
+internal sealed class RetentionStore(AuthenticationDbContext db, AuthenticationOptions options, ILogger<RetentionStore> logger) : IAuthenticationRetentionStore
 {
     public Task<CleanupResult> CleanBatchAsync(string owner, RetentionPolicy policy, CancellationToken cancellationToken) =>
         SqlTransactions.ExecuteAsync(db, "authentication:cleanup", async ct =>
@@ -60,6 +61,6 @@ internal sealed class RetentionStore(AuthenticationDbContext db, AuthenticationO
                 schedule.Owner = null;
             }
             return new CleanupResult(true, refresh, sessions, audits, more);
-        }, cancellationToken);
+        }, logger, cancellationToken);
 
 }

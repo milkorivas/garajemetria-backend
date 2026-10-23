@@ -9,7 +9,13 @@ public enum FailureCode
 }
 
 public sealed record Failure(FailureCode Code, int? RetryAfterSeconds = null);
-public sealed record Outcome<T>(T? Value, Failure? Error)
+public interface IOutcome
+{
+    bool Succeeded { get; }
+    Failure? Error { get; }
+}
+
+public sealed record Outcome<T>(T? Value, Failure? Error) : IOutcome
 {
     public bool Succeeded => Error is null;
     public static Outcome<T> Success(T value) => new(value, null);

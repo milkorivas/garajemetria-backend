@@ -13,11 +13,38 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace GarajeMetria.IntegrationTests;
 
 public sealed class InfrastructureFailureTests(SqlFixture database) : IClassFixture<SqlFixture>
 {
+    [SqlFact]
+    public async Task RollbackFailureIsLoggedWithoutLosingThePrimaryFailure()
+    {
+        var logs = new RecordingLogProvider();
+        using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
+        await using var db = new AuthenticationDbContext(new DbContextOptionsBuilder<AuthenticationDbContext>()
+            .UseSqlServer(database.ConnectionString).AddInterceptors(new FailedRollback()).Options);
+        var original = new InvalidOperationException("private-original");
+        var exception = await Assert.ThrowsAsync<PersistenceFailureException>(() => SqlTransactions.ExecuteAsync<int>(
+            db, "logging-test-rollback", _ => Task.FromException<int>(original), factory.CreateLogger("RollbackTest"), default));
+        Assert.Equal(FailureCode.OperationOutcomeUnknown, exception.Code);
+        Assert.Same(original, exception.InnerException);
+        var entry = Assert.Single(logs.Entries);
+        Assert.Equal("Persistence.Rollback", entry.Properties["Operation"]);
+        Assert.Equal(LogLevel.Error, entry.Level);
+        Assert.DoesNotContain("private-", entry.Message);
+        Assert.Null(entry.Exception);
+    }
+
+    private sealed class FailedRollback : DbTransactionInterceptor
+    {
+        public override ValueTask<InterceptionResult> TransactionRollingBackAsync(DbTransaction transaction,
+            TransactionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("private-rollback");
+    }
+
     [SqlFact]
     public async Task PersistenceErrorsUseSafeProblemDetailsWithoutCookiesOrRetryAfter()
     {

@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using GarajeMetria.Application.Authentication;
+using GarajeMetria.Application.Diagnostics;
 using Microsoft.Net.Http.Headers;
 
 namespace GarajeMetria.Api.Authentication;
@@ -10,7 +11,7 @@ public sealed record LoginReadResult(LoginRequest? Request, IResult? Error);
 
 public static class StrictLoginReader
 {
-    public static async Task<LoginReadResult> ReadAsync(HttpRequest request, AuthenticationOptions options, CancellationToken cancellationToken)
+    public static async Task<LoginReadResult> ReadAsync(HttpRequest request, AuthenticationOptions options, ILogger logger, CancellationToken cancellationToken)
     {
         if (!MediaTypeHeaderValue.TryParse(request.ContentType, out var contentType) ||
             !contentType.MediaType.Equals("application/json", StringComparison.OrdinalIgnoreCase) ||
@@ -44,6 +45,7 @@ public static class StrictLoginReader
         }
         catch (Exception ex) when (ex is JsonException or DecoderFallbackException or InvalidOperationException or ArgumentException)
         {
+            logger.LogSafeException(LogLevel.Information, "Login.InvalidPayload", ex);
             return Invalid();
         }
     }

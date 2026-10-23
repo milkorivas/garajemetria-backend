@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net;
 using GarajeMetria.Application.Authentication;
+using GarajeMetria.Application.Diagnostics;
 using MediatR;
 using Microsoft.AspNetCore.Antiforgery;
 
@@ -9,7 +10,6 @@ namespace GarajeMetria.Api.Authentication;
 public sealed record AntiforgeryResponse(string RequestToken, string HeaderName);
 public sealed record TokenResponse(string AccessToken, string TokenType, string AccessTokenExpiresAt);
 public sealed record LoginResponse(string AccessToken, string TokenType, string AccessTokenExpiresAt, AuthenticatedUser User);
-public sealed class AuthenticationLogCategory;
 
 public static class AuthenticationEndpoints
 {
@@ -30,12 +30,11 @@ public static class AuthenticationEndpoints
             .Produces<AntiforgeryResponse>().ProducesProblem(403);
 
         group.MapPost("/login", async (HttpContext context, ISender sender, AuthenticationOptions options, TimeProvider clock,
-            ILogger<AuthenticationLogCategory> logger, CancellationToken ct) =>
+            ILogger<AuthenticationRequestFilter> logger, CancellationToken ct) =>
         {
-            var parsed = await StrictLoginReader.ReadAsync(context.Request, options, ct);
+            var parsed = await StrictLoginReader.ReadAsync(context.Request, options, logger, ct);
             if (parsed.Error is not null) return parsed.Error;
             var result = await sender.Send(new LoginCommand(parsed.Request!.Username, parsed.Request.Password), ct);
-            logger.LogInformation("Authentication login: outcome={Outcome}, trace={TraceId}", result.Error?.Code.ToString() ?? "success", context.TraceIdentifier);
             return Respond(context, result, clock);
         }).WithSummary("Iniciar sesión con credenciales corporativas")
             .WithDescription("Requiere bootstrap antiforgery y cabecera X-CSRF-Token. El refresh se entrega solo en cookie Secure/HttpOnly/SameSite=Strict.")
@@ -43,20 +42,18 @@ public static class AuthenticationEndpoints
             .ProducesProblem(403).ProducesProblem(413).ProducesProblem(415).ProducesProblem(429).ProducesProblem(500).ProducesProblem(503);
 
         group.MapPost("/refresh", async (HttpContext context, ISender sender, TimeProvider clock,
-            ILogger<AuthenticationLogCategory> logger, CancellationToken ct) =>
+            CancellationToken ct) =>
         {
             if (ReadRefresh(context.Request) is not { } token) return ApiProblems.FromFailure(new(FailureCode.SessionEnded));
             var result = await sender.Send(new RefreshSessionCommand(token), ct);
-            logger.LogInformation("Authentication refresh: outcome={Outcome}, trace={TraceId}", result.Error?.Code.ToString() ?? "success", context.TraceIdentifier);
             return Respond(context, result, clock);
         }).WithSummary("Renovar una sesión mediante refresh de un solo uso")
             .Produces<TokenResponse>().ProducesProblem(401).ProducesProblem(403).ProducesProblem(429).ProducesProblem(500).ProducesProblem(503);
 
-        group.MapPost("/logout", async (HttpContext context, ISender sender, ILogger<AuthenticationLogCategory> logger, CancellationToken ct) =>
+        group.MapPost("/logout", async (HttpContext context, ISender sender, CancellationToken ct) =>
         {
             if (ReadRefresh(context.Request) is not { } token) return ApiProblems.FromFailure(new(FailureCode.SessionEnded));
             var result = await sender.Send(new LogoutCommand(token), ct);
-            logger.LogInformation("Authentication logout: outcome={Outcome}, trace={TraceId}", result.Error?.Code.ToString() ?? "success", context.TraceIdentifier);
             if (result.Error is not null) return ApiProblems.FromFailure(result.Error);
             context.Response.Cookies.Delete(RefreshCookie, RefreshCookieOptions());
             context.Response.Cookies.Delete(AntiforgeryCookie, new() { HttpOnly = true, Secure = true, SameSite = SameSiteMode.Strict, Path = "/" });
@@ -124,7 +121,11 @@ public sealed class AuthenticationRequestFilter(HttpOptions http, Authentication
                 AuthenticationEndpoints.CookieCount(request, AuthenticationEndpoints.AntiforgeryCookie) != 1)
                 return InvalidAntiforgery();
             try { await antiforgery.ValidateRequestAsync(context); }
-            catch (AntiforgeryValidationException) { return InvalidAntiforgery(); }
+            catch (AntiforgeryValidationException ex)
+            {
+                logger.LogSafeException(LogLevel.Information, "Antiforgery.ValidationRejected", ex);
+                return InvalidAntiforgery();
+            }
         }
         return await next(invocation);
     }

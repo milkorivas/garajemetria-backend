@@ -42,6 +42,8 @@ public sealed class DependencyTests
             library => IsDataAccessDependency(library.Name.Split('/')[0]) ||
                        library.Name.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal));
         AssertFrameworkBoundaries(assets);
+        Assert.DoesNotContain(assets.RootElement.GetProperty("libraries").EnumerateObject(),
+            library => library.Name.StartsWith("Serilog", StringComparison.Ordinal));
     }
 
     internal static bool IsDataAccessDependency(string name) =>

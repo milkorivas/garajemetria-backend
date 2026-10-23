@@ -4,7 +4,9 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using GarajeMetria.Application.Authentication;
+using GarajeMetria.Application.Diagnostics;
 using GarajeMetria.Domain.Authentication;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
 namespace GarajeMetria.Infrastructure.Authentication;
@@ -14,16 +16,18 @@ public sealed class JwtTokenService : ITokenService, IDisposable
     private readonly JwtOptions jwt;
     private readonly AuthenticationOptions options;
     private readonly TimeProvider clock;
+    private readonly ILogger<JwtTokenService> logger;
     private readonly X509Certificate2 signingCertificate;
     private readonly List<X509Certificate2> certificates = [];
     private readonly Dictionary<string, SecurityKey> keys = new(StringComparer.Ordinal);
     private readonly JwtSecurityTokenHandler handler = new() { MapInboundClaims = false, MaximumTokenSizeInBytes = 16384 };
 
-    public JwtTokenService(JwtOptions jwt, AuthenticationOptions options, TimeProvider clock)
+    public JwtTokenService(JwtOptions jwt, AuthenticationOptions options, TimeProvider clock, ILogger<JwtTokenService> logger)
     {
         this.jwt = jwt;
         this.options = options;
         this.clock = clock;
+        this.logger = logger;
         signingCertificate = X509CertificateLoader.LoadPkcs12FromFile(jwt.SigningCertificatePath, jwt.SigningCertificatePassword,
             X509KeyStorageFlags.EphemeralKeySet);
         certificates.Add(signingCertificate);
@@ -118,6 +122,7 @@ public sealed class JwtTokenService : ITokenService, IDisposable
         }
         catch (Exception ex) when (ex is SecurityTokenException or ArgumentException or JsonException or FormatException or OverflowException or InvalidOperationException)
         {
+            logger.LogSafeException(LogLevel.Information, "Jwt.ValidationRejected", ex);
             return null;
         }
     }

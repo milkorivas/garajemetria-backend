@@ -192,3 +192,72 @@ no acreditan por sí solos una restauración física ni revocaciones posteriores
 backup. La comprobación de restauración aislada sigue siendo condición de cierre
 operativo. Si no se puede confirmar un commit, no asumir rollback: login de nuevo
 al recuperar el servicio; no reenviar automáticamente el mismo refresh.
+
+## 7. Logs operativos
+
+Configurar el directorio externo y sus permisos según la
+[guía local](../configuration/local-configuration.md#logs-json-con-serilog).
+Los eventos de casos de uso incluyen operación, resultado y duración. Para
+investigar un ProblemDetails, buscar su `traceId` en `RequestId` y seguir el
+`TraceId` común a los eventos de la petición. Los eventos de procesos en
+segundo plano tienen su propia actividad; no disponen de RequestId HTTP.
+
+Los errores HTTP contienen categoría y tipo seguro; no incluyen el mensaje ni
+la pila de la excepción. No solicitar ni adjuntar credenciales, tokens, cookies
+o payloads completos para investigar un fallo. La auditoría persistida y sus
+plazos de retención son independientes de estos logs operativos.
+
+Monitorizar espacio libre, permisos y recepción de eventos en todos los PID.
+Un fallo posterior al arranque del sink o de la limpieza se comunica por stderr
+con `GarajeMetria logging failure: check log storage availability and permissions.`
+Capturar stderr mediante el alojamiento habitual de IIS/servicio. Este aviso
+omite rutas y excepciones internas; revisar almacenamiento y ACL en el servidor.
+El sink no es una cola durable: durante una indisponibilidad pueden perderse
+eventos, sin convertir escrituras de negocio en reintentos.
+
+Con rotación por tamaño pueden conservarse menos de 14 días. Hasta 30 archivos
+de aproximadamente 20 MiB por PID no constituyen un límite global: prever
+capacidad para los procesos solapados y los archivos de procesos anteriores.
+La limpieza por antigüedad se reanuda al abrir/rotar archivos, tras reiniciar si
+estaba detenido el servicio. Si no hay permisos para eliminar, atender el aviso
+de stderr. No eliminar auditoría SQL para resolver espacio del directorio de logs.
+
+Los sondeos fallidos registran la operación (`Health.ActiveDirectory.Connect`,
+`Health.ActiveDirectory.Bind` o `Health.Sql.Probe`), `ExceptionType`, `CauseType`
+y `ErrorCode` numérico si está disponible. Un fallo TLS, timeout, conexión o bind
+queda así diagnosticado sin publicar mensajes LDAP ni configuración. Se registra
+cada excepción capturada en Information; los cambios a indisponible generan
+Warning y la recuperación Information. Las observaciones repetidas del estado
+se registran en Debug. Estos estados se mantienen por proceso y se actualizan
+al consultar health; reiniciar el proceso reinicia el historial observado.
+
+Los eventos de AD incluyen además `Reason` y `Description`, con una explicación
+generada por la aplicación. Por ejemplo, LDAP 49 produce `invalid_credentials`
+y «Active Directory rechazó las credenciales de la cuenta de servicio» en el
+sondeo health. No se interpreta ese código general como contraseña incorrecta
+sin más información. Los binds de usuarios se describen como cuenta de usuario.
+Si el diagnóstico AD contiene un único subcódigo conocido de
+`AcceptSecurityContext`, se añade `AdSubCode` y una causa más precisa:
+`525` cuenta inexistente, `52e` credenciales rechazadas, `52f` restricciones de
+cuenta, `530` horario, `531` equipo, `532` contraseña caducada, `533` cuenta
+deshabilitada, `701` cuenta caducada, `773` cambio de contraseña requerido o
+`775` cuenta bloqueada. Las equivalencias siguen los códigos de error de
+[Windows 1300–1699](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--1300-1699-)
+y [1700–3999](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--1700-3999-).
+El texto LDAP se inspecciona solo en memoria con tamaño acotado; no se registra.
+Un diagnóstico desconocido, ambiguo o demasiado largo conserva la explicación
+genérica y no emite su subcódigo. TLS, conexión, timeout y cancelación tienen
+explicaciones propias. La respuesta pública de health y los niveles no cambian.
+
+También hay eventos seguros para JWT, JSON y antiforgery rechazados, failover
+LDAP, cancelaciones y fallos secundarios de rollback/liberación. Un fallo que
+escapa después de iniciar la respuesta se registra y propaga sin intentar
+escribir otro ProblemDetails. Los eventos de terceros con excepciones adjuntas
+se reducen a tipos y correlación; nunca se persisten mensajes ni pilas originales.
+
+Si el host falla antes de tener un logger disponible (por ejemplo, configuración
+o directorio de logs inaccesible), emite un diagnóstico JSON seguro a stderr
+con `Operation=Host.Lifetime` y termina con código 1. Capturar también stderr;
+ningún destino de archivos puede garantizar escritura si está inaccesible o
+se ha agotado el disco. El aviso de fallo del sink se mantiene separado para
+evitar intentar registrar recursivamente en el propio destino averiado.

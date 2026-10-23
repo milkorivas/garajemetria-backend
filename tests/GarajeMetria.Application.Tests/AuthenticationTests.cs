@@ -238,6 +238,7 @@ public sealed class AuthenticationTests
         public Task<Outcome<AuthenticationResult>> Refresh(string token) =>
             new RefreshSessionHandler(Directory, Store, Store, Store, Tokens, Limits, Options(), Clock).Handle(new(token), default);
         public ServiceProvider Services() => new ServiceCollection().AddSingleton(Options()).AddSingleton<TimeProvider>(Clock)
+            .AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<>), typeof(Microsoft.Extensions.Logging.Abstractions.NullLogger<>))
             .AddSingleton<ICorporateDirectory>(Directory).AddSingleton<IUserAccessQuery>(Store).AddSingleton<IAuthenticationSessionRepository>(Store)
             .AddSingleton<IUnitOfWork>(Store).AddSingleton<ITokenService>(Tokens).AddSingleton<IAuthenticationRateLimitStore>(Limits)
             .AddApplication().BuildServiceProvider();

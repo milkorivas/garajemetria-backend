@@ -2,11 +2,13 @@ using System.Globalization;
 using System.Net.Security;
 using System.Text;
 using GarajeMetria.Application.Authentication;
+using GarajeMetria.Infrastructure.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Novell.Directory.Ldap;
 
 namespace GarajeMetria.Infrastructure.Authentication;
 
-public sealed class LdapCorporateDirectory(DirectoryOptions options) : ICorporateDirectory
+public sealed class LdapCorporateDirectory(DirectoryOptions options, ILogger<LdapCorporateDirectory> logger) : ICorporateDirectory
 {
     private static readonly string[] Attributes = ["objectGUID", "sAMAccountName", "displayName",
         "userAccountControl", "msDS-User-Account-Control-Computed", "pwdLastSet"];
@@ -22,7 +24,11 @@ public sealed class LdapCorporateDirectory(DirectoryOptions options) : ICorporat
             using var user = NewConnection();
             await user.ConnectAsync(server, options.Port, ct);
             try { await user.BindAsync(entry.Dn, password, ct); }
-            catch (LdapException ex) when (ex.ResultCode == 49) { return new(DirectoryStatus.Rejected); }
+            catch (LdapException ex) when (ex.ResultCode == 49)
+            {
+                logger.LogDirectoryException(LogLevel.Information, "ActiveDirectory.UserBindRejected", ex, serviceAccount: false);
+                return new(DirectoryStatus.Rejected);
+            }
             var reread = await FindOneAsync(service, entry.Dn, "(objectClass=user)", Attributes, ct, LdapConnection.ScopeBase);
             if (reread is null || !ReadGuid(entry).Equals(ReadGuid(reread))) return new(DirectoryStatus.Rejected);
             return await DescribeAsync(service, reread, ct);
@@ -41,6 +47,7 @@ public sealed class LdapCorporateDirectory(DirectoryOptions options) : ICorporat
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(options.TimeoutSeconds));
+        var stage = "Connect";
         try
         {
             // Failover only while obtaining the service connection, before user credential validation.
@@ -49,18 +56,32 @@ public sealed class LdapCorporateDirectory(DirectoryOptions options) : ICorporat
                 using var service = NewConnection();
                 try
                 {
+                    stage = "Connect";
                     await service.ConnectAsync(server, options.Port, timeout.Token);
+                    stage = "ServiceBind";
                     await service.BindAsync(options.ServiceBindDn, options.ServicePassword, timeout.Token);
                 }
-                catch (LdapException) { continue; }
+                catch (LdapException ex)
+                {
+                    logger.LogDirectoryException(LogLevel.Warning, "ActiveDirectory." + stage, ex);
+                    continue;
+                }
+                stage = "ReadOrAuthenticate";
                 return await action(service, server, timeout.Token);
             }
             return new(DirectoryStatus.Unavailable);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return new(DirectoryStatus.Unavailable); }
+        catch (OperationCanceledException ex)
+        {
+            logger.LogDirectoryException(cancellationToken.IsCancellationRequested ? LogLevel.Information : LogLevel.Warning,
+                cancellationToken.IsCancellationRequested ? "ActiveDirectory.Cancelled" : "ActiveDirectory.Timeout", ex);
+            if (cancellationToken.IsCancellationRequested) throw;
+            return new(DirectoryStatus.Unavailable);
+        }
         catch (Exception ex) when (ex is LdapException or System.Security.Authentication.AuthenticationException or System.IO.IOException
             or FormatException or InvalidOperationException or System.Net.Sockets.SocketException)
         {
+            logger.LogDirectoryException(LogLevel.Warning, "ActiveDirectory." + stage, ex);
             return new(DirectoryStatus.Unavailable);
         }
     }

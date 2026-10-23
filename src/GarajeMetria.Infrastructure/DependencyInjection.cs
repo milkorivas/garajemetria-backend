@@ -41,7 +41,10 @@ public static class DependencyInjection
         });
         services.AddSingleton<AuthenticationAvailability>();
         services.AddSingleton<IAuthenticationAvailability>(sp => sp.GetRequiredService<AuthenticationAvailability>());
-        services.AddScoped<IHealthDiagnostics, HealthDiagnostics>();
+        services.AddSingleton<HealthStatusTracker>();
+        services.AddScoped<HealthDiagnostics>();
+        services.AddScoped<IHealthDiagnostics>(sp => new HealthDiagnosticsLoggingDecorator(
+            sp.GetRequiredService<HealthDiagnostics>(), sp.GetRequiredService<HealthStatusTracker>()));
         services.AddScoped<AuthenticationRepository>();
         services.AddScoped<IUserAccessQuery>(sp => sp.GetRequiredService<AuthenticationRepository>());
         services.AddScoped<IAuthenticationSessionRepository>(sp => sp.GetRequiredService<AuthenticationRepository>());

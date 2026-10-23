@@ -1,6 +1,7 @@
 using System.Data;
 using System.Diagnostics;
 using GarajeMetria.Application.Authentication;
+using GarajeMetria.Application.Diagnostics;
 using GarajeMetria.Domain.Authentication;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -21,10 +22,11 @@ internal static class SqlTransactions
             .SingleAsync(cancellationToken);
 
     public static async Task<T> ExecuteAsync<T>(AuthenticationDbContext db, string resource,
-        Func<CancellationToken, Task<T>> action, CancellationToken cancellationToken)
+        Func<CancellationToken, Task<T>> action, ILogger logger, CancellationToken cancellationToken)
     {
         IDbContextTransaction? transaction = null;
         var committing = false;
+        var failed = false;
         try
         {
             transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
@@ -38,11 +40,16 @@ internal static class SqlTransactions
         }
         catch (Exception ex)
         {
+            failed = true;
             var rollbackConfirmed = false;
             if (transaction is not null && !committing)
             {
                 try { await transaction.RollbackAsync(CancellationToken.None); rollbackConfirmed = true; }
-                catch (Exception rollbackError) when (rollbackError is SqlException or InvalidOperationException) { }
+                catch (Exception rollbackError) when (rollbackError is SqlException or InvalidOperationException)
+                {
+                    logger.LogSafeException(LogLevel.Error, "Persistence.Rollback", rollbackError,
+                        rollbackError is SqlException sql ? sql.Number : null);
+                }
             }
             if (ex is OperationCanceledException && !committing && (transaction is null || rollbackConfirmed)) throw;
             if (committing || transaction is not null && !rollbackConfirmed) throw new PersistenceFailureException(FailureCode.OperationOutcomeUnknown, ex);
@@ -51,7 +58,15 @@ internal static class SqlTransactions
         }
         finally
         {
-            if (transaction is not null) await transaction.DisposeAsync();
+            if (transaction is not null)
+            {
+                try { await transaction.DisposeAsync(); }
+                catch (Exception disposeError) when (failed)
+                {
+                    // Preserve the primary failure; disposal is a separate secondary failure.
+                    logger.LogSafeException(LogLevel.Error, "Persistence.DisposeTransaction", disposeError);
+                }
+            }
         }
     }
 
@@ -81,7 +96,7 @@ internal sealed class AuthenticationUnitOfWork(AuthenticationDbContext db, ILogg
                 .Where(entry => entry.Entity.ClosedAt is not null && entry.Property(x => x.ClosedAt).OriginalValue is null)
                 .Select(entry => entry.Entity.CloseReason!).ToArray();
             return value;
-        }, cancellationToken);
+        }, logger, cancellationToken);
         foreach (var reason in closures)
             logger.LogInformation("Authentication session closed: reason={Reason}, trace={TraceId}", reason, Activity.Current?.TraceId.ToString());
         return result;

@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using GarajeMetria.Application.Authentication;
 using GarajeMetria.Domain.Authentication;
 using GarajeMetria.Infrastructure.Authentication;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
 namespace GarajeMetria.IntegrationTests;
@@ -17,9 +18,12 @@ public sealed class JwtContractTests : IDisposable
     private readonly TestClock clock = new() { Now = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero).AddMilliseconds(321) };
     private readonly JwtTokenService service;
     private readonly AuthenticationSession session;
+    private readonly RecordingLogProvider logs = new();
+    private readonly ILoggerFactory logFactory;
 
     public JwtContractTests()
     {
+        logFactory = LoggerFactory.Create(b => b.AddProvider(logs));
         Directory.CreateDirectory(folder);
         var request = new CertificateRequest("CN=Synthetic-JWT-Test", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(2));
@@ -35,8 +39,20 @@ public sealed class JwtContractTests : IDisposable
             SigningCertificatePassword = "synthetic",
             SigningKeyId = "test-key"
         },
-            new AuthenticationOptions { AccessTokenLifetimeSeconds = 600, RefreshTokenLifetimeSeconds = 1800 }, clock);
+            new AuthenticationOptions { AccessTokenLifetimeSeconds = 600, RefreshTokenLifetimeSeconds = 1800 }, clock,
+            logFactory.CreateLogger<JwtTokenService>());
         session = new(Guid.NewGuid(), Guid.NewGuid(), UserRoles.Administrator, clock.Now, clock.Now.AddHours(8));
+    }
+
+    [Fact]
+    public void RejectedTokenExceptionsAreLoggedWithoutTheTokenOrExceptionMessage()
+    {
+        Assert.Null(service.Validate("!.private-token.!", "access"));
+        var entry = Assert.Single(logs.Entries);
+        Assert.Equal("Jwt.ValidationRejected", entry.Properties["Operation"]);
+        Assert.Equal(LogLevel.Information, entry.Level);
+        Assert.DoesNotContain("private-token", entry.Message);
+        Assert.Null(entry.Exception);
     }
 
     [Fact]
@@ -147,6 +163,7 @@ public sealed class JwtContractTests : IDisposable
     public void Dispose()
     {
         service.Dispose();
+        logFactory.Dispose();
         key.Dispose();
         var resolved = Path.GetFullPath(folder);
         if (resolved.StartsWith(Path.GetFullPath(Path.GetTempPath()), StringComparison.OrdinalIgnoreCase) &&

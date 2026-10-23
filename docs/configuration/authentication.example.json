@@ -1,4 +1,10 @@
 {
+  "FileLogging": {
+    "DirectoryPath": "C:\\ProgramData\\GarajeMetria\\logs",
+    "FileSizeLimitBytes": 20971520,
+    "RetainedFileCountLimit": 30,
+    "RetainedDays": 14
+  },
   "ConnectionStrings": {
     "Authentication": "<connection-string-for-the-target-environment>"
   },

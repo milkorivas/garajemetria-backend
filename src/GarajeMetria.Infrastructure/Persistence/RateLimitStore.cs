@@ -3,11 +3,12 @@ using System.Text;
 using GarajeMetria.Application.Authentication;
 using GarajeMetria.Application.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace GarajeMetria.Infrastructure.Persistence;
 
 internal sealed class RateLimitStore(AuthenticationDbContext db, AuthenticationOptions options,
-    IAuthenticationAvailability availability) : IAuthenticationRateLimitStore
+    IAuthenticationAvailability availability, ILogger<RateLimitStore> logger) : IAuthenticationRateLimitStore
 {
     internal static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     internal static string Fingerprint(AuthenticationOptions o) => Hash(string.Join(':', o.LoginIpLimit, o.LoginUserLimit,
@@ -21,7 +22,7 @@ internal sealed class RateLimitStore(AuthenticationDbContext db, AuthenticationO
             if (current is null) db.RateConfigurations.Add(new() { Id = options.RateLimitNamespace, Fingerprint = fingerprint });
             else if (current.Fingerprint != fingerprint) throw new InvalidOperationException("Rate policy configuration differs from the shared policy.");
             return true;
-        }, cancellationToken);
+        }, logger, cancellationToken);
 
     public async Task<RateDecision> AdmitAsync(RatePolicy policy, string subject, CancellationToken cancellationToken)
     {
@@ -44,6 +45,6 @@ internal sealed class RateLimitStore(AuthenticationDbContext db, AuthenticationO
                 return new RateDecision(false, now, times[times.Count - policy.Limit].AddSeconds(policy.WindowSeconds));
             db.RatePermits.Add(new() { Id = Guid.NewGuid(), PartitionId = key, AcceptedAt = now });
             return new RateDecision(true, now, null);
-        }, cancellationToken);
+        }, logger, cancellationToken);
     }
 }

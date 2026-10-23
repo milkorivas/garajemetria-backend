@@ -113,6 +113,7 @@ public sealed class AuthenticationFactory : WebApplicationFactory<Program>
         else File.Copy(shared.CertificatePath, CertificatePath);
         var configuration = new
         {
+            FileLogging = new { DirectoryPath = Path.Combine(temporaryDirectory, "logs") },
             ConnectionStrings = new { Authentication = database.ConnectionString },
             Directory = new
             {

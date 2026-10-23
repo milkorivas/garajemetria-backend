@@ -1,10 +1,11 @@
 using GarajeMetria.Application.Authentication;
 using GarajeMetria.Domain.Authentication;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace GarajeMetria.Infrastructure.Persistence;
 
-internal sealed class AuthenticationRepository(AuthenticationDbContext db, TimeProvider clock)
+internal sealed class AuthenticationRepository(AuthenticationDbContext db, TimeProvider clock, ILogger<AuthenticationRepository> logger)
     : IUserAccessQuery, IAuthenticationSessionRepository, ISessionStatusQuery
 {
     public async Task<LocalIdentity?> FindAsync(Guid userId, CancellationToken cancellationToken)
@@ -44,7 +45,7 @@ internal sealed class AuthenticationRepository(AuthenticationDbContext db, TimeP
                 await db.SaveChangesAsync(ct);
             }
             return (await FindAsync(user.Id, ct))!;
-        }, cancellationToken);
+        }, logger, cancellationToken);
 
     Task<AuthenticationSession?> IAuthenticationSessionRepository.FindAsync(Guid sessionId, CancellationToken cancellationToken) =>
         db.Sessions.SingleOrDefaultAsync(x => x.Id == sessionId, cancellationToken);

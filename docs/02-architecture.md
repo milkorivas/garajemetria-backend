@@ -225,7 +225,55 @@ Completar un tramo requiere criterios cubiertos, arquitectura preservada,
 documentación y OpenAPI actualizados y comprobaciones aplicables superadas.
 Las pruebas no ejecutadas se identifican como tales.
 
-## 9. Evolución por tramos
+## 9. Logging transversal
+
+Application utiliza `ILogger<T>` de .NET, sin una interfaz `ILogService` ni
+dependencias de Serilog. `LoggingBehavior` aplica Decorator mediante el pipeline
+de MediatR, por fuera de la validación: inicio y cancelación solicitada en Debug;
+finalización en Information con operación, resultado y duración. `IOutcome`
+permite consultar el resultado sin inspeccionar ni serializar los DTOs. Las
+respuestas sin ese contrato se registran como `completed`, sin inferir negocio.
+
+La API configura Serilog y el sink de archivos JSON compactos. Un ámbito HTTP
+añade `RequestId` (el `traceId` de ProblemDetails) y `TraceId` de Activity. Los
+casos de uso sin Activity crean una actividad propia. El middleware estándar
+`UseExceptionHandler` y `ApiExceptionHandler` conservan los contratos HTTP y
+registran una sola vez los errores: persistencia conocida en Warning e
+inesperados en Error, solo con código y tipo seguro. Los supervisores conservan
+la responsabilidad de los fallos fuera de HTTP. Cancelaciones de transporte y
+respuestas iniciadas permanecen bajo el comportamiento del framework.
+
+No se serializan solicitudes, respuestas, usuarios, matrículas, tokens,
+credenciales, cookies ni objetos/mensajes de excepción. El formato JSON transforma
+eventos externos con excepciones adjuntas en metadatos seguros: tipo de excepción
+y causa, categoría y correlación. Descarta su mensaje, pila y propiedades
+arbitrarias. Las categorías automáticas de ASP.NET Core y EF Core siguen
+excluidas porque sus diagnósticos pueden contener datos sin filtrar: las
+fronteras propias de HTTP, persistencia y supervisión registran esos fallos.
+No se activa logging de cuerpos ni de peticiones HTTP completas.
+
+Las excepciones capturadas y convertidas en resultados también se registran:
+sondeos SQL/AD, failover y bind LDAP, validación JWT, JSON y antiforgery.
+Los rechazos esperados y las cancelaciones se registran en Information, sin
+convertirse en errores 500. Las excepciones propagadas se registran en su
+frontera responsable, evitando duplicarlas en el pipeline. Un fallo secundario
+de rollback o liberación se registra separado y no oculta el fallo principal.
+`SafeExceptionLogging` es una extensión de `ILogger`, sin servicios ni interfaces
+de logging adicionales. Los fallos del host antes de disponer del proveedor
+se emiten como JSON seguro a stderr y terminan con código de salida 1.
+
+Un Decorator de `IHealthDiagnostics` observa los resultados con estado compartido
+por proceso: Warning al detectar indisponibilidad, Information al recuperarse y
+Debug para observaciones repetidas. Cada excepción técnica capturada conserva
+su propio evento en Information (también si el estado no cambia), con operación,
+tipo, causa y código numérico cuando existe. Solo se observa health cuando se
+consulta; no se añade un monitor periódico ni se modifica la respuesta pública.
+
+Configuración y operación:
+[guía local](configuration/local-configuration.md#logs-json-con-serilog) y
+[runbook](runbooks/authentication.md#7-logs-operativos).
+
+## 10. Evolución por tramos
 
 La implementación avanza por requerimientos, con su diseño y plan de tareas.
 RF-001 es el primer tramo independiente; la integración corporativa de talleres
