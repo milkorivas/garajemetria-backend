@@ -168,8 +168,12 @@ se rechaza el acceso.
   en el directorio durante una sesión existente deben ser configurables mediante
   un archivo de configuración, sin valores fijos en el código. Las políticas de
   comportamiento de estos procesos están definidas en RF-001 y DESIGN-001.
-- La autenticación de dispositivos LPR se definirá por separado de la sesión
-  de los usuarios corporativos.
+- La autenticación de dispositivos LPR es independiente de la sesión de usuarios:
+  GarajeMetría emitirá tokens OAuth Client Credentials de 15 minutos configurables,
+  sin refresh token, con credenciales propias por dispositivo y revocación
+  inmediata. El Administrador registra cada dispositivo con un taller inmutable;
+  su mantenimiento y la ingesta se definen en
+  [RF-003](requirements/RF-003-lpr-event-ingestion.md).
 - Se expone una única API para aplicaciones consumidoras de cualquier tecnología
   o plataforma, sin un cliente de escritorio específico ni contratos por tipo
   de aplicación. El access token se devuelve en JSON y se envía mediante
@@ -282,17 +286,22 @@ administrativos y LPR aún no están implementados. Consultar el
 - Quedan por definir el tratamiento de eventos tardíos y del día todavía en
   curso. No se infieren visitas individuales
   adicionales a partir de las lecturas intermedias sin una regla acordada.
-- Antes de implementar la ingesta se definirán la identidad de eventos y
-  dispositivos, los reintentos y el tratamiento de duplicados y eventos fuera
-  de orden.
+- RF-003 define un evento JSON por petición, con UUID conservado en reintentos,
+  dispositivo y taller autorizados. Confirma duplicados idénticos sin duplicar
+  efectos y rechaza cambios para el mismo UUID. Los eventos nuevos admiten
+  inicialmente hasta 30 minutos de antigüedad y 30 de adelanto, configurables.
+  Un duplicado persistido puede confirmarse fuera de plazo si sigue autorizado.
 - La entrega repetida o concurrente de un mismo evento no debe producir
   efectos de negocio duplicados. La persistencia debe respaldar esta garantía
   mediante un mecanismo atómico.
 - Se distinguirá la fecha de captura de la fecha de recepción. Los instantes
   se representarán con `DateTimeOffset` en UTC; la zona horaria del taller se
   aplicará cuando corresponda.
-- Las reglas de normalización de matrículas, asociación de lecturas y cálculo
-  de estancias deben definirse antes de su implementación.
+- RF-003 conserva matrículas españolas actuales, antiguas y especiales:
+  normaliza mayúsculas y separadores sin perder ceros ni corregir caracteres.
+  Las lecturas de formato inválido se conservan marcadas como tales, así como
+  las de baja confianza válida. La asociación de lecturas y el cálculo de
+  estancias, incluido el uso de lecturas inválidas, se concretarán en RF-004.
 - Solo el Administrador puede realizar correcciones manuales, que deben conservar su trazabilidad:
   quién realizó el cambio, cuándo y cuáles fueron los datos anteriores y
   posteriores. Los campos corregibles y el efecto sobre las estancias están
@@ -362,11 +371,12 @@ corresponde al sistema externo. Detalles y contrato de origen pendiente en
    propios de cada funcionalidad en su requerimiento. Roles, primer acceso y
    mantenimiento del taller ya están definidos en RF-002; solo los
    Administradores pueden mantener las asignaciones.
-2. **Origen y significado de eventos:** dispositivos o proveedor LPR, datos
-   disponibles, configuración de la zona horaria de cada taller y tratamiento
-   de direcciones inconsistentes. El agrupamiento por vehículo, taller y día
-   utiliza la fecha de captura en la zona horaria del taller; primera lectura
-   como entrada y última del día como salida.
+2. **Significado de eventos:** RF-003 define la recepción independiente del
+   fabricante, las credenciales por dispositivo, los datos, reintentos y límites
+   temporales. RF-004 concretará la zona horaria de cada taller y el tratamiento
+   de direcciones inconsistentes y lecturas inválidas. El agrupamiento por
+   vehículo, taller y día utiliza la fecha de captura en la zona horaria del
+   taller; primera lectura como entrada y última del día como salida.
 3. **Estancias e incidencias:** tratamiento de lecturas repetidas, movimientos
    incompletos y eventos tardíos; campos corregibles y efecto de las correcciones
    sobre las estancias y los informes. Para una lectura única está acordada una

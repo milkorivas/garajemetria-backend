@@ -16,13 +16,15 @@ se mantienen en `design/`. Para RF-001, consultar
 [DESIGN-001 — Autenticación](design/DESIGN-001-authentication.md).
 Para RF-002, consultar
 [DESIGN-002 — Roles y acceso a talleres](design/DESIGN-002-roles-and-workshop-access.md).
+Para RF-003, consultar
+[DESIGN-003 — Recepción de eventos LPR](design/DESIGN-003-lpr-event-ingestion.md).
 
 Los planes de implementación se mantienen en `tasks/`:
 [TASKS-001 — Autenticación](tasks/TASKS-001-authentication.md) y
 [TASKS-002 — Roles y acceso a talleres](tasks/TASKS-002-roles-and-workshop-access.md).
 Los requisitos definen qué construir, los diseños cómo hacerlo y las tareas
 el trabajo pendiente con sus dependencias y verificaciones. Los contratos
-técnicos de autenticación tienen una sola fuente: DESIGN-001; RF-001 mantiene
+técnicos de autenticación de usuarios tienen una sola fuente: DESIGN-001; RF-001 mantiene
 las reglas funcionales y referencias estables a ese diseño.
 
 ## 2. Convenciones
@@ -93,7 +95,7 @@ correspondientes. El primer tramo acordado es RF-001, autenticación.
 | --- | --- | --- | --- | --- |
 | RF-001 | Autenticación | Alta | Definido | [RF-001-authentication.md](requirements/RF-001-authentication.md) |
 | RF-002 | Roles y acceso a talleres | Por definir | Definido | [RF-002-roles-and-workshop-access.md](requirements/RF-002-roles-and-workshop-access.md) |
-| RF-003 | Recepción de eventos LPR | Por definir | En definición | `requirements/RF-003-lpr-event-ingestion.md` |
+| RF-003 | Recepción de eventos LPR | Por definir | Definido | [RF-003-lpr-event-ingestion.md](requirements/RF-003-lpr-event-ingestion.md) |
 | RF-004 | Entradas, salidas y estancias | Por definir | En definición | `requirements/RF-004-arrivals-departures-and-stays.md` |
 | RF-005 | Consulta de vehículos e historial | Por definir | En definición | `requirements/RF-005-vehicle-history-and-search.md` |
 | RF-006 | Correcciones manuales y auditoría | Por definir | En definición | `requirements/RF-006-manual-corrections-and-audit.md` |
@@ -114,6 +116,11 @@ actualización en 15 minutos en operación normal y continuidad con la última
 copia ante fallos, junto con los efectos de desactivación y reactivación.
 El esquema de origen y su diseño/plan técnico siguen pendientes para implementar
 esa integración; no son decisiones pendientes del requisito de autenticación.
+
+RF-003 define la ingesta JSON de un evento por petición y la administración de
+dispositivos con OAuth Client Credentials emitido por GarajeMetría. DESIGN-003
+concreta sus contratos y persistencia; el plan de implementación está pendiente.
+La definición no acredita ejecución.
 
 ## 4. Requerimientos no funcionales
 

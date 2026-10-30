@@ -152,6 +152,20 @@ explícitamente. La autorización comprueba tanto la operación como el recurso,
 con aislamiento por taller derivado de identidad confiable. Un identificador
 de taller enviado por el cliente no acredita acceso.
 
+Para dispositivos LPR, [RF-003](requirements/RF-003-lpr-event-ingestion.md)
+establece OAuth Client Credentials emitido por GarajeMetría con credenciales
+propias por dispositivo, tokens de 15 minutos configurables y sin refresh token.
+La revocación, rotación y desactivación invalidan inmediatamente los tokens
+previos entre instancias; no basta validar firma y caducidad. La asociación
+dispositivo/taller es inmutable y los registros no se borran físicamente.
+El [diseño DESIGN-003](design/DESIGN-003-lpr-event-ingestion.md) selecciona
+OpenIddict para servidor y validación local, con stores EF en Infrastructure
+y protocolo HTTP en Api. Añade una versión persistida por dispositivo para
+invalidación inmediata, coordinada con publicación de catálogo; las capas
+internas no dependen de OpenIddict. La implementación está pendiente y no cambia
+la autenticación de usuarios de RF-001. Los errores del endpoint de token
+siguen OAuth, separados de ProblemDetails para recursos.
+
 Se utilizan HTTPS, CORS con orígenes explícitos, límites de peticiones y
 protección CSRF cuando el uso de cookies lo exige. No se deshabilita la
 validación de certificados. Las matrículas y los eventos asociados se tratan

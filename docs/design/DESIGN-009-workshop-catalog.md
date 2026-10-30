@@ -128,3 +128,13 @@ códigos, coherencia y confirmación de vacío. Mantener la vista acordada o ada
 y probar el origen aislado. Cambiar de motor puede requerir otro adaptador.
 Las herramientas EF deben indicar `--context AuthenticationDbContext` al operar
 las migraciones locales, porque existe también el contexto externo de lectura.
+
+## Extensión prevista por RF-003
+
+[DESIGN-003](DESIGN-003-lpr-event-ingestion.md) requiere que una publicación que
+desactive talleres renueve las versiones de autorización de sus dispositivos
+en la misma transacción de catálogo. Esto impedirá recuperar tokens antiguos al
+reactivar un taller, conservando registros, credenciales y asociaciones.
+Emisión e ingesta tomarán primero `workshops:catalog` y revalidarán estado local.
+Esta extensión todavía no está implementada; no modifica la continuidad con la
+última copia confirmada ni los efectos actuales sobre sesiones de Asesor.
