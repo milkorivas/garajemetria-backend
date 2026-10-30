@@ -6,7 +6,7 @@
 | Estado | Diseño técnico para implementación; código y verificaciones pendientes |
 | Plataforma | C# 14, .NET 10, ASP.NET Core, EF Core y SQL Server |
 | Dependencias | RF-001, RF-002 y RF-009; interpretación posterior en RF-004 |
-| Plan de tareas | TASKS-003 pendiente de redactar |
+| Plan de tareas | [TASKS-003](../tasks/TASKS-003-lpr-event-ingestion.md), redactado; ejecución pendiente |
 
 ## 1. Alcance y decisiones
 
@@ -569,7 +569,7 @@ datos reales. No declarar probada una cámara o proveedor por probar HTTP.
 
 ## 10. Preparación para implementación
 
-Redactar TASKS-003 con tramos dependientes: persistencia/modelo; adaptación
+El plan TASKS-003 organiza los tramos dependientes: persistencia/modelo; adaptación
 OpenIddict y esquemas; administración/auditoría; publicación de catálogo e
 invalidación; ingesta; límites/retención; OpenAPI y runbook; pruebas trazables.
 Actualizar DESIGN-009 al implementar su extensión y registrar limitaciones de

@@ -19,6 +19,8 @@ La interpretación de entradas, salidas y estancias corresponde a RF-004.
 
 Los contratos HTTP, opciones técnicas, persistencia y trazabilidad de pruebas
 se concretan en [DESIGN-003](../design/DESIGN-003-lpr-event-ingestion.md).
+El trabajo y sus dependencias se planifican en
+[TASKS-003](../tasks/TASKS-003-lpr-event-ingestion.md).
 
 ## 2. Datos del evento
 
@@ -179,7 +181,7 @@ de token si el protocolo requiere otro formato.
 | CA-018 | Distinto orden del JSON, fechas equivalentes y dirección ausente/null permiten confirmar un reintento. Cambiar el texto original de matrícula o cualquier otro dato comparado produce conflicto. |
 
 Los casos de prueba previstos y la trazabilidad detallada se recogen en
-DESIGN-003; TASKS-003 queda pendiente. No hay implementación ni verificación
+DESIGN-003; TASKS-003 planifica su ejecución pendiente. No hay implementación ni verificación
 de estos criterios todavía.
 
 ## 7. Capacidad de referencia y trabajo posterior
@@ -194,8 +196,8 @@ La definición funcional está cerrada para este alcance. La prioridad de
 planificación permanece por definir y no impide redactar el diseño.
 DESIGN-003 concreta implementación OAuth establecida, contratos HTTP,
 catálogo verificable de formatos de matrícula, límites, control de concurrencia,
-integración con el catálogo de talleres y persistencia. TASKS-003 deberá
-planificar pruebas unitarias, HTTP y SQL Server aislado, y verificación con
+integración con el catálogo de talleres y persistencia. TASKS-003
+planifica pruebas unitarias, HTTP y SQL Server aislado, y verificación con
 Postman y dispositivos o emisores externos. No declarar implementado o probado
 lo documentado. La interfaz del panel continúa fuera de este repositorio.
 

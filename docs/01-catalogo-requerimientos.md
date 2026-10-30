@@ -20,8 +20,9 @@ Para RF-003, consultar
 [DESIGN-003 — Recepción de eventos LPR](design/DESIGN-003-lpr-event-ingestion.md).
 
 Los planes de implementación se mantienen en `tasks/`:
-[TASKS-001 — Autenticación](tasks/TASKS-001-authentication.md) y
-[TASKS-002 — Roles y acceso a talleres](tasks/TASKS-002-roles-and-workshop-access.md).
+[TASKS-001 — Autenticación](tasks/TASKS-001-authentication.md),
+[TASKS-002 — Roles y acceso a talleres](tasks/TASKS-002-roles-and-workshop-access.md) y
+[TASKS-003 — Recepción de eventos LPR](tasks/TASKS-003-lpr-event-ingestion.md).
 Los requisitos definen qué construir, los diseños cómo hacerlo y las tareas
 el trabajo pendiente con sus dependencias y verificaciones. Los contratos
 técnicos de autenticación de usuarios tienen una sola fuente: DESIGN-001; RF-001 mantiene
@@ -119,7 +120,8 @@ esa integración; no son decisiones pendientes del requisito de autenticación.
 
 RF-003 define la ingesta JSON de un evento por petición y la administración de
 dispositivos con OAuth Client Credentials emitido por GarajeMetría. DESIGN-003
-concreta sus contratos y persistencia; el plan de implementación está pendiente.
+concreta sus contratos y persistencia; TASKS-003 planifica su implementación
+y verificación, ambas pendientes.
 La definición no acredita ejecución.
 
 ## 4. Requerimientos no funcionales
