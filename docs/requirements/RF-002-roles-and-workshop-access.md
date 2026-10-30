@@ -2,7 +2,7 @@
 
 | ID | Requerimiento | Prioridad | Estado |
 | --- | --- | --- | --- |
-| RF-002 | Roles y acceso a talleres | Por definir | Definido |
+| RF-002 | Roles y acceso a talleres | Por definir | Implementado; verificación AD aislado pendiente |
 
 ## 1. Objetivo
 
@@ -15,7 +15,7 @@ Referencias: [Visión y alcance](../00-vision-y-alcance.md),
 [DESIGN-001 — Autenticación](../design/DESIGN-001-authentication.md).
 
 Los componentes de roles y primer acceso compartidos se implementan en RF-001;
-el mantenimiento administrativo de asignaciones de este tramo sigue sin implementar.
+el mantenimiento administrativo de asignaciones está implementado en este tramo.
 Su diseño técnico para SDD se desarrolla en
 [DESIGN-002 — Roles y acceso a talleres](../design/DESIGN-002-roles-and-workshop-access.md).
 Sustituye la decisión anterior de asignar los roles localmente en GarajeMetría.
@@ -306,7 +306,11 @@ locales ni talleres como parte de esa limpieza ni añadir endpoints de borrado.
 | CA-021 | Auditoría y aprovisionamiento se conservan durante los plazos de DESIGN-001 / 7.2 y solo se eliminan al ser elegibles mediante su limpieza coordinada, sin editar historial ni borrar perfiles. | CP-021: frontera temporal calculada con las opciones vigentes, lotes concurrentes y ausencia de cascadas sobre identidad/asignación. |
 | CA-022 | Solo se asignan talleres activos; la desactivación cierra sesiones de Asesor conservando asignación y la reactivación permite nuevo login sin recuperar tokens previos. | CP-022: destino inexistente/inactivo, publicación concurrente, última copia durante caída y ausencia de carga inicial; coordinación con RF-009. |
 
-Las pruebas están planificadas. Application usa dobles sin red ni base de datos;
+La cobertura automatizada administrativa se implementa en `UserAdministrationTests`,
+`WorkshopAssignmentTests` y `WorkshopAssignmentMigrationTests`, reutilizando las
+pruebas de autenticación y catálogo. Los CA-005/006 se integrarán con los endpoints
+de negocio de sus respectivos requerimientos. La verificación de grupos y
+permisos con AD aislado sigue pendiente. Application usa dobles sin red ni base de datos;
 las pruebas LDAPS y SQL Server utilizan recursos aislados y datos sintéticos.
 No usar EF InMemory ni SQLite como sustitutos de persistencia SQL Server.
 
@@ -314,7 +318,9 @@ No usar EF InMemory ni SQLite como sustitutos de persistencia SQL Server.
 
 Las decisiones funcionales de este requerimiento están definidas para el alcance
 descrito: roles, primer acceso, mantenimiento del taller, validación, concurrencia
-y auditoría. «Definido» no significa implementado ni probado.
+y auditoría. El alcance administrativo está implementado; el runbook
+[de administración](../runbooks/user-administration.md) describe sus contratos,
+migración y límites de verificación. No se acredita integración con AD real.
 
 Los nombres de servidores, grupos resueltos en el entorno, permisos y demás
 parámetros operativos se verifican con el administrador de AD y se configuran

@@ -113,14 +113,73 @@ namespace GarajeMetria.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("GarajeMetria.Domain.Users.WorkshopAssignmentAuditEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CorrelationId")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("NewWorkshopId")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasPrecision(7)
+                        .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<string>("PreviousWorkshopId")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("NewWorkshopId");
+
+                    b.HasIndex("OccurredAt");
+
+                    b.HasIndex("PreviousWorkshopId");
+
+                    b.HasIndex("UserId", "OccurredAt");
+
+                    b.ToTable("WorkshopAssignmentAudits", (string)null);
+                });
+
             modelBuilder.Entity("GarajeMetria.Infrastructure.Persistence.CatalogState", b =>
                 {
                     b.Property<int>("Id")
                         .HasColumnType("int");
 
+                    b.Property<DateTimeOffset?>("LastObservedAt")
+                        .HasPrecision(7)
+                        .HasColumnType("datetimeoffset(7)");
+
                     b.Property<DateTimeOffset?>("LastPublishedAt")
                         .HasPrecision(7)
                         .HasColumnType("datetimeoffset(7)");
+
+                    b.Property<long>("NextObservationVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("PublishedVersion")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 
@@ -159,6 +218,9 @@ namespace GarajeMetria.Infrastructure.Persistence.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AssignmentVersion")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("DefaultWorkshopId")
@@ -269,10 +331,24 @@ namespace GarajeMetria.Infrastructure.Persistence.Migrations
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
 
                     b.ToTable("WorkshopAccess", (string)null);
                 });
@@ -291,6 +367,31 @@ namespace GarajeMetria.Infrastructure.Persistence.Migrations
                     b.HasOne("GarajeMetria.Domain.Authentication.AuthenticationSession", null)
                         .WithMany()
                         .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("GarajeMetria.Domain.Users.WorkshopAssignmentAuditEntry", b =>
+                {
+                    b.HasOne("GarajeMetria.Infrastructure.Persistence.LocalUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GarajeMetria.Infrastructure.Persistence.WorkshopAccess", null)
+                        .WithMany()
+                        .HasForeignKey("NewWorkshopId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("GarajeMetria.Infrastructure.Persistence.WorkshopAccess", null)
+                        .WithMany()
+                        .HasForeignKey("PreviousWorkshopId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("GarajeMetria.Infrastructure.Persistence.LocalUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

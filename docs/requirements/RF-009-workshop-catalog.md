@@ -2,7 +2,7 @@
 
 | ID | Requerimiento | Prioridad | Estado |
 | --- | --- | --- | --- |
-| RF-009 | Catálogo corporativo de talleres | Por definir | En definición |
+| RF-009 | Catálogo corporativo de talleres | Por definir | Implementación con fuente SQL auxiliar; origen corporativo definitivo pendiente |
 
 ## 1. Objetivo y alcance
 
@@ -11,10 +11,14 @@ validar las asignaciones de [RF-002](RF-002-roles-and-workshop-access.md).
 Los talleres se mantienen exclusivamente en el sistema externo. GarajeMetría
 no ofrece altas, modificaciones ni bajas manuales del catálogo.
 
-La fuente es una base de datos o vista con acceso de solo lectura y devuelve
-únicamente talleres activos. Este documento recoge comportamiento acordado,
-todavía no implementado. El adaptador requiere el contrato de origen de la
-sección 7 antes de generar su código; su diseño y plan de tareas están pendientes.
+La fuente prevista es una base de datos o vista con acceso de solo lectura y devuelve
+únicamente talleres activos. Se implementa una fuente SQL Server auxiliar
+`GarajeMetriaAux`, con treinta talleres sintéticos y vista de activos,
+según lo autorizado por el usuario; sustituye el mock en memoria.
+El contrato auxiliar se documenta en DESIGN-009. El origen corporativo definitivo
+requiere comprobar los datos de la sección 7.
+Véanse [diseño](../design/DESIGN-009-workshop-catalog.md) y
+[tareas](../tasks/TASKS-009-workshop-catalog.md).
 
 ## 2. Modelo mínimo
 
@@ -90,8 +94,9 @@ obtiene acceso al catálogo administrativo completo.
 
 La consulta administrativa debe estar autenticada, paginada, con orden estable
 y DTO explícito con `id`, `code`, `name` e `isActive`. El contrato HTTP exacto,
-sus filtros y límites se concretarán en el diseño de RF-009 antes de implementar
-consumidores. No añadir endpoints de escritura del catálogo ni de sincronización
+sus filtros y límites están acordados en DESIGN-009: `GET /api/workshops`,
+`pageNumber=1`, `pageSize=20` (máximo 100), `isActive` opcional y orden por id.
+No añadir endpoints de escritura del catálogo ni de sincronización
 anónima como parte de esta definición.
 
 ## 6. Criterios de aceptación y pruebas previstas
@@ -109,7 +114,8 @@ anónima como parte de esta definición.
 | CA-009 | Instancias concurrentes no publican estados parciales ni sobrescriben una observación nueva con una atrasada. | CP-009: dos ejecutores, interrupción y recuperación con SQL Server aislado. |
 | CA-010 | La consulta administrativa requiere Administrador, paginación y DTO acotados; no hay mantenimiento local del catálogo. | CP-010: permisos y contrato HTTP cuando se cierre el diseño. |
 
-Pruebas planificadas, no ejecutadas. Application usa dobles sin red ni base de
+Se han añadido pruebas automatizadas para el tramo SQL auxiliar/local. La integración
+corporativa real y la verificación operativa siguen pendientes. Application usa dobles sin red ni base de
 datos. Persistencia se verifica con SQL Server aislado y el adaptador externo
 con una fuente de prueba del motor adoptado; no EF InMemory ni SQLite sustitutos.
 
@@ -118,8 +124,9 @@ con una fuente de prueba del motor adoptado; no EF InMemory ni SQLite sustitutos
 1. Motor y esquema de la base/vista, campos de código y nombre, nulabilidad,
    longitudes, equivalencia de códigos (mayúsculas, espacios y colación) y
    garantías de lectura completa/coherente, incluida una lista vacía válida.
-2. Contrato HTTP de consulta del catálogo y diseño del ejecutor: configuración,
-   cadencia con margen suficiente, coordinación entre instancias y recuperación.
+2. Verificación operativa de la cadencia, latencia, coordinación y recuperación
+   con el origen corporativo definitivo. El contrato HTTP, la fuente SQL auxiliar
+   y el ejecutor se definen en DESIGN-009.
 
 Las reglas de continuidad, desactivación y reactivación ya están acordadas.
 No se necesitan secretos en estos documentos ni se presupone acceso probado a

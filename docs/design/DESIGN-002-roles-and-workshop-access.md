@@ -5,7 +5,7 @@
 | Requerimiento de origen | [RF-002 — Roles y acceso a talleres](../requirements/RF-002-roles-and-workshop-access.md) |
 | Plan de implementación | [TASKS-002](../tasks/TASKS-002-roles-and-workshop-access.md) |
 | Estado | Especificación técnica para desarrollo guiado por especificaciones (SDD) |
-| Implementación | Pendiente; el repositorio contiene la estructura base |
+| Implementación | Administración implementada; verificación AD aislado pendiente |
 | Plataforma | C# 14, .NET 10, ASP.NET Core, EF Core y SQL Server |
 | Integración | [RF-001](../requirements/RF-001-authentication.md) y [DESIGN-001 — Autenticación](DESIGN-001-authentication.md) |
 
@@ -24,9 +24,9 @@ asignación manual de roles, mantenimiento del catálogo de talleres ni endpoint
 de imágenes, consultas de vehículos o correcciones. Sus permisos se expresan
 aquí para que los casos de uso correspondientes los apliquen.
 
-Los contratos y componentes descritos deben implementarse; no se presentan como
-funcionalidad existente. La definición de este documento no acredita pruebas
-ejecutadas ni integración AD/SQL Server disponible.
+Los contratos administrativos están implementados sobre RF-001 y RF-009.
+La evidencia de pruebas SQL/HTTP y sus límites se recoge en TASKS-002; la
+verificación con AD real aislado sigue pendiente.
 
 ## 2. Identidad, roles y acceso
 
@@ -350,7 +350,8 @@ administración de grupos o sincronización masiva.
 
 ## 8. Pruebas y trazabilidad
 
-Las siguientes pruebas están planificadas, no ejecutadas. Mantener referencias
+La matriz guía la cobertura de autenticación, catálogo y administración; las
+pruebas contra AD real aislado siguen pendientes. Mantener referencias
 RF-002 / CA-XXX y CP-XXX en las pruebas; la matriz de permisos no implica que
 los endpoints de otros requerimientos estén implementados en este alcance.
 

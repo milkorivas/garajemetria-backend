@@ -275,6 +275,19 @@ Configuración y operación:
 
 ## 10. Evolución por tramos
 
+RF-002 incorpora consultas administrativas de perfiles y asignación de taller
+con ETag/If-Match. Application autoriza al actor desde contexto confiable y
+coordina cambio, auditoría y cierre de sesión mediante la unidad de trabajo
+compartida. La versión opaca no depende de rowversion. Infrastructure reutiliza
+el bloqueo catálogo/usuario de RF-009 y mantiene LDAPS fuera de SQL. La auditoría
+usa la limpieza y retención existentes. Contratos y operación:
+[runbook de administración](runbooks/user-administration.md).
+
+RF-009 incorpora una fuente SQL auxiliar de lectura y copia SQL local,
+consulta administrativa paginada y publicación coordinada con autenticación.
+Sus decisiones, límites provisionales de mapping y futuro adaptador se describen
+en [DESIGN-009](design/DESIGN-009-workshop-catalog.md).
+
 La implementación avanza por requerimientos, con su diseño y plan de tareas.
 RF-001 es el primer tramo independiente; la integración corporativa de talleres
 y los casos LPR se implementan en sus respectivos tramos. Sus reglas deben

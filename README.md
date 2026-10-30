@@ -11,7 +11,8 @@ Implementación de RF-001 con .NET 10 y C# 14: autenticación corporativa, JWT,
 sesiones persistidas en SQL Server, cuotas compartidas, antiforgery y limpieza.
 Las pruebas HTTP usan un directorio sintético y SQL real; la verificación contra
 AD de pruebas y la restauración física aislada siguen pendientes.
-No están implementados los endpoints administrativos ni los casos LPR.
+RF-009 incorpora consulta administrativa de talleres con fuente SQL auxiliar y copia
+local SQL. Las asignaciones administrativas de RF-002 y los casos LPR siguen pendientes.
 Las reglas de AGENTS.md rigen el desarrollo.
 
 Las decisiones técnicas comunes se documentan en
@@ -143,3 +144,40 @@ ProblemDetails. No se devuelven detalles internos ni secretos.
 La configuración privada, los certificados y las opciones no SQL siguen siendo
 obligatorios. Cambiar el archivo privado requiere reiniciar; recuperar la
 conectividad de un SQL ya configurado no requiere reinicio.
+
+## Catálogo de talleres (RF-009)
+
+RF-009 lee treinta talleres sintéticos desde `GarajeMetriaAux.dbo.ActiveWorkshops`
+y guarda su copia local en `GarajeMetria`. El mock en memoria se ha eliminado.
+En `Development` se habilita `Source=SqlServer`; en otros entornos la
+sincronización está deshabilitada por defecto. La conexión externa
+`ConnectionStrings:WorkshopSource` y sus opciones se configuran en el archivo
+privado externo indicado por `GARAJEMETRIA_PRIVATE_CONFIG`, según
+[el ejemplo](docs/configuration/workshop-catalog.example.json).
+El script [de la fuente auxiliar](docs/configuration/sql/workshop-source-local.sql)
+crea la base, tabla `dbo.Workshops` (`Code`, `Name`, `IsActive`), vista de activos
+y treinta registros. Se ejecuta manualmente y conserva datos existentes.
+Para probar una baja, cambiar `IsActive` en la fuente; al sincronizar se conserva
+la referencia local como inactiva. La API no escribe en la fuente externa.
+Reiniciar la API después de cambiar el archivo privado o el adaptador.
+
+Aplicar previamente la migración nueva mediante el procedimiento habitual
+([migraciones](docs/configuration/migration-procedure.md)); el host no la aplica.
+La primera sincronización se intenta al arrancar y se repite cada 5 minutos,
+con timeout de 60 segundos. Si hay talleres previos sin código corporativo, la
+migración se detiene y exige un plan de correspondencias que preserve sus IDs.
+
+Consulta: `GET /api/workshops?pageNumber=1&pageSize=20&isActive=true`, con
+access token Bearer de Administrador y sesión vigente. Sin primera publicación,
+responde 503. No hay altas ni cambios manuales. El diseño y los pasos para
+adoptar una futura vista corporativa están en [DESIGN-009](docs/design/DESIGN-009-workshop-catalog.md).
+
+## RF-002 — Asignaciones de taller
+
+Administración de perfiles y asignaciones con Bearer de Administrador:
+`GET /api/users`, `GET /api/users/{userId}/default-workshop` y
+`PUT /api/users/{userId}/default-workshop`. Los cambios requieren motivo e
+If-Match y confirman asignación, auditoría y cierre de sesión conjuntamente.
+Aplicar la migración `WorkshopAssignments` mediante el procedimiento habitual.
+Contratos, configuración, errores y límites de verificación en el
+[runbook de administración](docs/runbooks/user-administration.md).

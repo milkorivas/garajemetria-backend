@@ -40,7 +40,10 @@ internal sealed class RetentionStore(AuthenticationDbContext db, AuthenticationO
             var auditIds = await db.ProvisioningAudits.Where(x => x.OccurredAt <= auditCutoff)
                 .OrderBy(x => x.OccurredAt).ThenBy(x => x.Id).Select(x => x.Id).Take(policy.BatchSize).ToArrayAsync(ct);
             var audits = await db.ProvisioningAudits.Where(x => auditIds.Contains(x.Id)).ExecuteDeleteAsync(ct);
-            var more = refresh == policy.BatchSize || sessions == policy.BatchSize || audits == policy.BatchSize;
+            var assignmentIds = await db.AssignmentAudits.Where(x => x.OccurredAt <= auditCutoff)
+                .OrderBy(x => x.OccurredAt).ThenBy(x => x.Id).Select(x => x.Id).Take(policy.BatchSize).ToArrayAsync(ct);
+            var assignmentAudits = await db.AssignmentAudits.Where(x => assignmentIds.Contains(x.Id)).ExecuteDeleteAsync(ct);
+            var more = refresh == policy.BatchSize || sessions == policy.BatchSize || audits == policy.BatchSize || assignmentAudits == policy.BatchSize;
             // Rate event retention is independent of session/audit retention.
             var permitCutoff = now.AddSeconds(-options.RateLimitWindowSeconds);
             var permitIds = await db.RatePermits.Where(x => x.AcceptedAt <= permitCutoff)
@@ -60,7 +63,7 @@ internal sealed class RetentionStore(AuthenticationDbContext db, AuthenticationO
                 schedule.LeaseUntil = now;
                 schedule.Owner = null;
             }
-            return new CleanupResult(true, refresh, sessions, audits, more);
+            return new CleanupResult(true, refresh, sessions, audits + assignmentAudits, more);
         }, logger, cancellationToken);
 
 }

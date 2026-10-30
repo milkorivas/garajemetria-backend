@@ -7,6 +7,10 @@ public static class ApiProblems
 {
     public static IResult FromFailure(Failure failure) => failure.Code switch
     {
+        FailureCode.Forbidden => Create(403, "forbidden", "No tienes permiso para realizar esta operación"),
+        FailureCode.ResourceNotFound => Create(404, "resource_not_found", "El recurso solicitado no existe"),
+        FailureCode.AssignmentConflict => Create(409, "assignment_conflict", "La asignación solicitada no está permitida"),
+        FailureCode.PreconditionFailed => Create(412, "precondition_failed", "La asignación ha cambiado. Consulta su estado antes de volver a intentarlo"),
         FailureCode.InvalidInput => Create(400, "invalid_input", "La solicitud de inicio de sesión no es válida"),
         FailureCode.InvalidCredentials => Create(401, "invalid_credentials", "No se pudo iniciar sesión"),
         FailureCode.NoRole => Create(403, "role_required", "No tienes un rol asignado en GarajeMetría"),

@@ -266,11 +266,22 @@ como `Debug`. Los errores con la etapa exacta siguen visibles con el nivel habit
 LDAP 10 se describe como `referral_received`: AD devolvió una referencia a otra
 ubicación LDAP. Usuarios y grupos de este despliegue pertenecen al mismo dominio;
 eso no elimina necesariamente las referencias de una búsqueda bajo su raíz.
+Las búsquedas de usuarios (login y relectura de sesión) envían el control crítico
+AD Domain Scope (`1.2.840.113556.1.4.1339`) para limitarse al dominio de la base
+configurada y evitar referencias a particiones subordinadas. Las lecturas por
+DN de usuario y grupos conservan su alcance base. El servidor debe soportar
+ese control; su rechazo no se oculta ni provoca una búsqueda más amplia.
 No se siguen ni ignoran automáticamente nuevas referencias, ni se amplían
 servidores, puertos o alcance de búsqueda. El fallo mantiene el cierre de acceso
 y la respuesta actuales. Usar la etapa registrada para comprobar después el
 servidor, `SearchBase` y las ubicaciones de los grupos, sin publicar sus valores
 en logs. No se registran las URL de las referencias.
+
+En `Directory:Servers`, configurar los FQDN de los controladores de dominio
+cubiertos por sus certificados LDAPS. El nombre DNS del dominio puede resolver
+correctamente y aun así producir `tls_validation_failed` por discrepancia de
+nombre en el certificado. No desactivar su validación. Tras cambiar el archivo
+privado, reiniciar la API: la configuración se carga al arrancar.
 
 También hay eventos seguros para JWT, JSON y antiforgery rechazados, failover
 LDAP, cancelaciones y fallos secundarios de rollback/liberación. Un fallo que

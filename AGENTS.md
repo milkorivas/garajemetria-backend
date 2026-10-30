@@ -221,7 +221,29 @@ tests/
 - Automate architecture dependency checks. Prioritize workshop isolation,
   unauthorized access, duplicate/concurrent LPR delivery, temporal ordering,
   concurrency conflicts, validation, pagination, and safe error responses.
-- Once the solution exists, run applicable checks from its root:
+- **Full-suite frequency:** Run the entire application test suite only when the
+  user explicitly requests it, or once during the first development session of
+  a calendar day if it has not already run that day. Use `Atlantic/Canary` for
+  the calendar date. Do not rerun the full suite after each edit or task.
+- Before a daily full-suite run, check the known execution history and the local
+  record at `artifacts/agent-checks/full-suite.json` (already ignored by Git).
+  After an actual full-suite attempt, record its local date, UTC timestamp,
+  command, outcome, and passed/failed/skipped counts when available. Reuse known
+  execution evidence across sessions; never invent a run or a successful result.
+- A failed full-suite attempt also counts as that day's run. Investigate failures
+  and rerun only affected tests; another full-suite attempt that day requires an
+  explicit user request. Explicit requests may override the daily limit.
+- Between full-suite runs, execute only focused tests proportionate to the changed
+  behavior or an identified failure. Batch related edits before verification;
+  repeat or broaden focused checks only for new changes, failures, or unresolved
+  concerns. Continue adding relevant tests even when their full-suite execution
+  is deferred by this policy.
+- Run restore, build, and format checks when needed for the change, rather than
+  automatically after every edit. For documentation-only changes, inspect the
+  diff without running application tests. This policy does not create a scheduled
+  automation or change existing CI triggers; daily agent checks occur during work.
+- Once the solution exists, use these root-level commands as the reference for a
+  full verification, subject to the frequency rules above:
 
 ```sh
 dotnet restore
@@ -233,6 +255,8 @@ dotnet test --no-build --configuration Release
 - Adapt commands to actual solution/tooling and document test prerequisites.
   Automate applicable checks in CI; do not use production resources for tests.
 - Done means acceptance criteria met, architecture preserved, no new warnings,
-  relevant checks passing, documentation current, and no unrelated changes.
+  relevant checks required by this frequency policy passing, documentation current,
+  and no unrelated changes. A new full-suite run is not required for every task;
+  report its last known execution and any verification deferred by this policy.
 - Report changes, checks actually run, results, and remaining limitations.
   If checks cannot run, state why; never imply unverified work passed.

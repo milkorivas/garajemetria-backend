@@ -89,8 +89,10 @@ internal sealed class AuthenticationUnitOfWork(AuthenticationDbContext db, ILogg
     public async Task<T> ExecuteAsync<T>(Guid userId, Func<CancellationToken, Task<T>> action, CancellationToken cancellationToken)
     {
         string[] closures = [];
-        var result = await SqlTransactions.ExecuteAsync(db, "authentication:user:" + userId.ToString("N"), async ct =>
+        var result = await SqlTransactions.ExecuteAsync(db, "workshops:catalog", async ct =>
         {
+            // Same lock order as catalog publication; no external calls inside this transaction.
+            await SqlTransactions.LockAsync(db, "authentication:user:" + userId.ToString("N"), ct);
             var value = await action(ct);
             closures = db.ChangeTracker.Entries<AuthenticationSession>()
                 .Where(entry => entry.Entity.ClosedAt is not null && entry.Property(x => x.ClosedAt).OriginalValue is null)

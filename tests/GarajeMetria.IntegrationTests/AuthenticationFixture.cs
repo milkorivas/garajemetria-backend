@@ -99,7 +99,8 @@ public sealed class AuthenticationFactory : WebApplicationFactory<Program>
     public string RateNamespace { get; } = "test-" + Guid.NewGuid().ToString("N");
     public string KeyPath { get; }
 
-    public AuthenticationFactory(SqlFixture database, AuthenticationFactory? shared = null, Action<IServiceCollection>? configureServices = null)
+    public AuthenticationFactory(SqlFixture database, AuthenticationFactory? shared = null, Action<IServiceCollection>? configureServices = null,
+        bool enableWorkshopSource = false)
     {
         this.configureServices = configureServices;
         KeyPath = shared?.KeyPath ?? Path.Combine(temporaryDirectory, "keys");
@@ -113,8 +114,9 @@ public sealed class AuthenticationFactory : WebApplicationFactory<Program>
         else File.Copy(shared.CertificatePath, CertificatePath);
         var configuration = new
         {
+            WorkshopCatalog = new { Enabled = enableWorkshopSource, Source = enableWorkshopSource ? "SqlServer" : "Disabled" },
             FileLogging = new { DirectoryPath = Path.Combine(temporaryDirectory, "logs") },
-            ConnectionStrings = new { Authentication = database.ConnectionString },
+            ConnectionStrings = new { Authentication = database.ConnectionString, WorkshopSource = database.ConnectionString },
             Directory = new
             {
                 Servers = new[] { "localhost" },

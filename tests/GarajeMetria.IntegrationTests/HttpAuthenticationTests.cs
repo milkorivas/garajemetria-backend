@@ -200,7 +200,17 @@ public sealed class HttpAuthenticationTests(SqlFixture database) : IClassFixture
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var paths = document.RootElement.GetProperty("paths");
-        Assert.Equal(5, paths.EnumerateObject().Count());
+        Assert.Equal(8, paths.EnumerateObject().Count());
+        Assert.True(paths.GetProperty("/api/workshops").TryGetProperty("get", out _));
+        Assert.True(paths.GetProperty("/api/users").TryGetProperty("get", out _));
+        var assignment = paths.GetProperty("/api/users/{userId}/default-workshop");
+        Assert.True(assignment.GetProperty("get").GetProperty("responses").GetProperty("200").GetProperty("headers").TryGetProperty("ETag", out _));
+        var put = assignment.GetProperty("put");
+        Assert.Contains(put.GetProperty("parameters").EnumerateArray(), p => p.GetProperty("name").GetString() == "If-Match" && p.GetProperty("required").GetBoolean());
+        var schema = put.GetProperty("requestBody").GetProperty("content").GetProperty("application/json").GetProperty("schema");
+        Assert.False(schema.GetProperty("additionalProperties").GetBoolean());
+        Assert.Equal(new[] { "reason", "workshopId" }, schema.GetProperty("required").EnumerateArray().Select(x => x.GetString()).Order().ToArray());
+        Assert.True(put.GetProperty("responses").TryGetProperty("428", out _));
         Assert.True(paths.GetProperty("/api/auth/login").GetProperty("post").GetProperty("responses").TryGetProperty("503", out _));
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/swagger/index.html")).StatusCode);
     }

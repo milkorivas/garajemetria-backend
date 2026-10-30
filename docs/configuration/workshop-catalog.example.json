@@ -1,0 +1,16 @@
+{
+  "ConnectionStrings": {
+    "WorkshopSource": "Server=localhost;Database=GarajeMetriaAux;Integrated Security=true;Encrypt=true;ApplicationIntent=ReadOnly;Connect Timeout=15"
+  },
+  "WorkshopSource": {
+    "CommandTimeoutSeconds": 30
+  },
+  "WorkshopCatalog": {
+    "Enabled": true,
+    "Source": "SqlServer",
+    "IntervalSeconds": 300,
+    "TimeoutSeconds": 60,
+    "DefaultPageSize": 20,
+    "MaxPageSize": 100
+  }
+}

@@ -5,7 +5,8 @@ namespace GarajeMetria.Application.Authentication;
 public enum FailureCode
 {
     InvalidInput, InvalidCredentials, NoRole, NoWorkshop, InactiveWorkshop, SessionEnded,
-    DirectoryUnavailable, ServiceUnavailable, InternalError, OperationOutcomeUnknown, RateLimited
+    DirectoryUnavailable, ServiceUnavailable, InternalError, OperationOutcomeUnknown, RateLimited,
+    Forbidden, ResourceNotFound, AssignmentConflict, PreconditionFailed
 }
 
 public sealed record Failure(FailureCode Code, int? RetryAfterSeconds = null);

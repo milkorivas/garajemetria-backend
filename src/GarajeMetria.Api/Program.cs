@@ -2,7 +2,10 @@ using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using GarajeMetria.Api.Authentication;
 using GarajeMetria.Api.Diagnostics;
+using GarajeMetria.Api.Users;
+using GarajeMetria.Api.Workshops;
 using GarajeMetria.Application;
+using GarajeMetria.Application.Users;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
@@ -25,6 +28,8 @@ try
     builder.Services.AddSingleton(authentication);
     builder.Services.AddSingleton(http);
     builder.Services.AddApplication();
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
     GarajeMetria.Infrastructure.DependencyInjection.AddInfrastructure(builder.Services, builder.Configuration);
     builder.Services.AddExceptionHandler<ApiExceptionHandler>();
     builder.Services.AddProblemDetails(o => o.CustomizeProblemDetails = context =>
@@ -50,7 +55,8 @@ try
     builder.Services.AddAuthentication("Bearer").AddScheme<AuthenticationSchemeOptions, SessionBearerHandler>("Bearer", _ => { });
     builder.Services.AddAuthorizationBuilder().SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
     builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(http.AllowedOrigins)
-        .AllowCredentials().WithMethods("GET", "POST", "OPTIONS").WithHeaders("Content-Type", "Authorization", AuthenticationEndpoints.CsrfHeader)));
+        .AllowCredentials().WithMethods("GET", "POST", "PUT", "OPTIONS")
+        .WithHeaders("Content-Type", "Authorization", "If-Match", AuthenticationEndpoints.CsrfHeader).WithExposedHeaders("ETag")));
     builder.Services.Configure<ForwardedHeadersOptions>(o =>
     {
         o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -59,7 +65,12 @@ try
         o.KnownIPNetworks.Clear();
         foreach (var proxy in http.TrustedProxies) o.KnownProxies.Add(IPAddress.Parse(proxy));
     });
-    builder.Services.AddOpenApi(o => o.AddOperationTransformer<AuthenticationOpenApi>());
+    builder.Services.AddOpenApi(o =>
+    {
+        o.AddOperationTransformer<AuthenticationOpenApi>();
+        o.AddOperationTransformer<WorkshopOpenApi>();
+        o.AddOperationTransformer<UserAdministrationOpenApi>();
+    });
     builder.Services.AddHealthDiagnostics();
     var app = builder.Build();
     app.UseMiddleware<RequestLogScopeMiddleware>();
@@ -79,6 +90,8 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
     app.MapAuthenticationEndpoints();
+    app.MapWorkshopEndpoints();
+    app.MapUserAdministrationEndpoints();
     app.MapHealthEndpoints();
     app.Run();
 }

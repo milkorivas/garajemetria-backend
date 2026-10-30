@@ -9,6 +9,26 @@ namespace GarajeMetria.IntegrationTests;
 public sealed class DirectoryStageLoggingTests
 {
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UserSearchStaysInTheDomainWithoutChangingBaseReads(bool refresh)
+    {
+        using var factory = LoggerFactory.Create(_ => { });
+        var script = new DirectoryScript(refresh: refresh);
+        var directory = new LdapCorporateDirectory(Options(), factory.CreateLogger<LdapCorporateDirectory>(), script.CreateConnection);
+        var result = refresh ? await directory.ReadAsync(Guid.NewGuid(), default)
+            : await directory.AuthenticateAsync("private-user", "private-password", default);
+
+        Assert.Equal(DirectoryStatus.Valid, result.Status);
+        Assert.NotEmpty(script.SearchConstraints);
+        var control = Assert.Single(script.SearchConstraints[0].GetControls());
+        Assert.Equal("1.2.840.113556.1.4.1339", control.Id);
+        Assert.True(control.Critical);
+        Assert.All(script.SearchConstraints, constraints => Assert.False(constraints.ReferralFollowing));
+        Assert.All(script.SearchConstraints.Skip(1), constraints => Assert.True(constraints.GetControls() is null or { Length: 0 }));
+    }
+
+    [Theory]
     [InlineData("UserSearch", null, false)]
     [InlineData("UserSearch", null, true)]
     [InlineData("UserConnect", null, false)]
@@ -106,6 +126,7 @@ public sealed class DirectoryStageLoggingTests
         private readonly Queue<(string Stage, string? Group, LdapEntry? Entry)> searches = new();
         private int connections;
         public bool CredentialRejection { get; init; }
+        public List<LdapSearchConstraints> SearchConstraints { get; } = [];
 
         public DirectoryScript(string? failStage = null, string? failGroup = null, bool failOnNext = false, bool refresh = false)
         {
@@ -130,7 +151,7 @@ public sealed class DirectoryStageLoggingTests
         public ILdapConnection CreateConnection()
         {
             var userConnection = connections++ > 0;
-            return Proxy<ILdapConnection>(method => method.Name switch
+            var connection = Proxy<ILdapConnection>(method => method.Name switch
             {
                 "ConnectAsync" => ConnectionStep(userConnection ? "UserConnect" : "Connect"),
                 "BindAsync" => ConnectionStep(userConnection ? "UserBind" : "ServiceBind"),
@@ -138,6 +159,11 @@ public sealed class DirectoryStageLoggingTests
                 "Dispose" => null,
                 _ => throw new InvalidOperationException("Unexpected LDAP method in stage test: " + method.Name)
             });
+            ((ScriptedLdapProxy)(object)connection).ObserveMethod = (method, args) =>
+            {
+                if (method.Name == "SearchAsync") SearchConstraints.Add(Assert.IsType<LdapSearchConstraints>(args![5]));
+            };
+            return connection;
         }
 
         private Task ConnectionStep(string stage) => stage == failStage ? Task.FromException(Failure()) : Task.CompletedTask;
@@ -172,6 +198,11 @@ public sealed class DirectoryStageLoggingTests
     public class ScriptedLdapProxy : DispatchProxy
     {
         public Func<MethodInfo, object?> InvokeMethod { get; set; } = null!;
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => InvokeMethod(targetMethod!);
+        public Action<MethodInfo, object?[]?>? ObserveMethod { get; set; }
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            ObserveMethod?.Invoke(targetMethod!, args);
+            return InvokeMethod(targetMethod!);
+        }
     }
 }

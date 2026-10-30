@@ -145,7 +145,12 @@ public sealed class LdapCorporateDirectory : ICorporateDirectory
     private static async Task<LdapEntry?> FindOneAsync(ILdapConnection connection, string searchBase, string filter,
         string[] attributes, CancellationToken ct, int scope = LdapConnection.ScopeSub)
     {
-        var results = await connection.SearchAsync(searchBase, scope, filter, attributes, false, ct);
+        // Users and authorizing groups belong to one AD domain. Do not traverse
+        // subordinate naming contexts (including DNS and configuration partitions).
+        var constraints = new LdapSearchConstraints { ReferralFollowing = false };
+        if (scope == LdapConnection.ScopeSub)
+            constraints.SetControls(new LdapControl("1.2.840.113556.1.4.1339", true, null));
+        var results = await connection.SearchAsync(searchBase, scope, filter, attributes, false, constraints, ct);
         LdapEntry? result = null;
         while (await results.HasMoreAsync(ct))
         {

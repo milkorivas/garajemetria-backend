@@ -29,7 +29,7 @@
     "VerificationKeys": []
   },
   "Http": {
-    "AllowedOrigins": ["https://garajemetria.com", "https://api.garajemetria.com"],
+    "AllowedOrigins": ["https://garajemetria.com", "https://api.garajemetria.com", "https://localhost:7040", "https://localhost"],
     "TrustedProxies": [],
     "DataProtectionKeyPath": "<absolute-external-shared-key-directory>",
     "DataProtectionCertificatePath": "<absolute-external-path-to-protection-pfx>",

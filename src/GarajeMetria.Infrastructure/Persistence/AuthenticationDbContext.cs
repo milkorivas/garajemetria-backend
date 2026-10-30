@@ -1,4 +1,5 @@
 using GarajeMetria.Domain.Authentication;
+using GarajeMetria.Domain.Users;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -11,11 +12,14 @@ public sealed class LocalUser
     public string Username { get; set; } = "";
     public string DisplayName { get; set; } = "";
     public string? DefaultWorkshopId { get; set; }
+    public Guid AssignmentVersion { get; set; } = Guid.NewGuid();
 }
 
 public sealed class WorkshopAccess
 {
     public string Id { get; set; } = "";
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
     public bool IsActive { get; set; }
 }
 
@@ -23,6 +27,9 @@ public sealed class CatalogState
 {
     public int Id { get; set; }
     public DateTimeOffset? LastPublishedAt { get; set; }
+    public DateTimeOffset? LastObservedAt { get; set; }
+    public long NextObservationVersion { get; set; }
+    public long PublishedVersion { get; set; }
 }
 
 public sealed class ProvisioningAudit
@@ -61,6 +68,7 @@ public sealed class CleanupSchedule
 public sealed class AuthenticationDbContext(DbContextOptions<AuthenticationDbContext> options) : DbContext(options)
 {
     public DbSet<LocalUser> Users => Set<LocalUser>();
+    public DbSet<WorkshopAssignmentAuditEntry> AssignmentAudits => Set<WorkshopAssignmentAuditEntry>();
     public DbSet<WorkshopAccess> Workshops => Set<WorkshopAccess>();
     public DbSet<CatalogState> Catalog => Set<CatalogState>();
     public DbSet<AuthenticationSession> Sessions => Set<AuthenticationSession>();
@@ -85,6 +93,7 @@ internal sealed class LocalUserMapping : IEntityTypeConfiguration<LocalUser>
         b.Property(x => x.Username).HasMaxLength(512).IsRequired();
         b.Property(x => x.DisplayName).HasMaxLength(2048).IsRequired();
         b.Property(x => x.DefaultWorkshopId).HasMaxLength(256);
+        b.Property(x => x.AssignmentVersion).IsRequired();
         b.HasOne<WorkshopAccess>().WithMany().HasForeignKey(x => x.DefaultWorkshopId).OnDelete(DeleteBehavior.Restrict);
     }
 }
@@ -96,6 +105,9 @@ internal sealed class WorkshopMapping : IEntityTypeConfiguration<WorkshopAccess>
         b.ToTable("WorkshopAccess");
         b.HasKey(x => x.Id);
         b.Property(x => x.Id).HasMaxLength(256);
+        b.Property(x => x.Code).HasMaxLength(256).UseCollation("Latin1_General_100_BIN2").IsRequired();
+        b.Property(x => x.Name).HasMaxLength(2048).IsRequired();
+        b.HasIndex(x => x.Code).IsUnique();
     }
 }
 
@@ -107,6 +119,7 @@ internal sealed class CatalogMapping : IEntityTypeConfiguration<CatalogState>
         b.HasKey(x => x.Id);
         b.Property(x => x.Id).ValueGeneratedNever();
         b.Property(x => x.LastPublishedAt).HasPrecision(7);
+        b.Property(x => x.LastObservedAt).HasPrecision(7);
     }
 }
 

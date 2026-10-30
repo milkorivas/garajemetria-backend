@@ -17,6 +17,7 @@ $env:GARAJEMETRIA_MIGRATIONS_CONNECTION = $privateConfig.ConnectionStrings.Authe
 ## Aplica las migraciones
 ```powershell
 dotnet ef database update `
+    --context AuthenticationDbContext `
     --project src/GarajeMetria.Infrastructure `
     --startup-project src/GarajeMetria.Infrastructure `
     --configuration Release

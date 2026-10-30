@@ -1,8 +1,11 @@
 using GarajeMetria.Application.Authentication;
 using GarajeMetria.Application.Diagnostics;
+using GarajeMetria.Application.Users;
+using GarajeMetria.Application.Workshops;
 using GarajeMetria.Infrastructure.Authentication;
 using GarajeMetria.Infrastructure.Diagnostics;
 using GarajeMetria.Infrastructure.Persistence;
+using GarajeMetria.Infrastructure.Workshops;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +31,48 @@ public static class DependencyInjection
         services.AddSingleton(directory);
         services.AddSingleton(jwt);
         services.TryAddSingleton(TimeProvider.System);
+        var catalog = configuration.GetSection("WorkshopCatalog").Get<WorkshopCatalogOptions>() ?? new();
+        if (catalog.IntervalSeconds is <= 0 or > 600 || catalog.TimeoutSeconds is <= 0 or > 120 ||
+            catalog.IntervalSeconds + catalog.TimeoutSeconds > 840 || catalog.DefaultPageSize <= 0 ||
+            catalog.MaxPageSize is <= 0 or > 100 || catalog.DefaultPageSize > catalog.MaxPageSize ||
+            catalog.Enabled && catalog.Source != "SqlServer" || !catalog.Enabled && catalog.Source != "Disabled")
+            throw new InvalidOperationException("Invalid WorkshopCatalog configuration.");
+        services.AddSingleton(catalog);
+        var administration = configuration.GetSection("UserAdministration").Get<UserAdministrationOptions>() ?? new();
+        if (administration.DefaultPageSize <= 0 || administration.MaxPageSize is <= 0 or > 100 ||
+            administration.DefaultPageSize > administration.MaxPageSize || administration.MaxBodyBytes is <= 0 or > 1048576)
+            throw new InvalidOperationException("Invalid UserAdministration configuration.");
+        services.AddSingleton(administration);
+        services.AddScoped<UserAdministrationRepository>();
+        services.AddScoped<IUserAdministrationQuery>(sp => sp.GetRequiredService<UserAdministrationRepository>());
+        services.AddScoped<ILocalUserRepository>(sp => sp.GetRequiredService<UserAdministrationRepository>());
+        services.AddScoped<IWorkshopQuery>(sp => sp.GetRequiredService<UserAdministrationRepository>());
+        services.AddScoped<IWorkshopAssignmentAuditRepository>(sp => sp.GetRequiredService<UserAdministrationRepository>());
+        services.AddScoped<IWorkshopCatalogStore, SqlWorkshopCatalogStore>();
+        if (catalog.Enabled)
+        {
+            var sourceOptions = configuration.GetSection("WorkshopSource").Get<WorkshopSourceOptions>() ?? new();
+            var sourceConnection = configuration.GetConnectionString("WorkshopSource");
+            if (string.IsNullOrWhiteSpace(sourceConnection) || sourceOptions.CommandTimeoutSeconds is <= 0 or > 120 ||
+                sourceOptions.CommandTimeoutSeconds > catalog.TimeoutSeconds)
+                throw new InvalidOperationException("Invalid or missing WorkshopSource configuration.");
+            try
+            {
+                var sourceBuilder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(sourceConnection);
+                if (sourceBuilder.ConnectTimeout is <= 0 or > 120)
+                    throw new InvalidOperationException("WorkshopSource requires a bounded connection timeout.");
+            }
+            catch (ArgumentException) { throw new InvalidOperationException("Invalid WorkshopSource connection configuration."); }
+            services.AddSingleton(sourceOptions);
+            services.AddDbContext<WorkshopSourceDbContext>(o => o.UseSqlServer(sourceConnection,
+                sql => sql.CommandTimeout(sourceOptions.CommandTimeoutSeconds)));
+            services.AddScoped<IWorkshopSource, SqlWorkshopSource>();
+            services.AddHostedService<WorkshopSynchronizationService>();
+        }
+        else
+        {
+            services.AddSingleton<IWorkshopSource, DisabledWorkshopSource>();
+        }
         services.AddDbContext<AuthenticationDbContext>(o =>
         {
             try

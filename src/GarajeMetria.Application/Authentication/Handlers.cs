@@ -40,6 +40,12 @@ public sealed class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidat
             {
                 if (typeof(TResponse) == typeof(Outcome<AuthenticationResult>))
                     return (TResponse)(object)Outcome<AuthenticationResult>.Fail(FailureCode.InvalidInput);
+                if (typeof(TResponse) == typeof(Outcome<GarajeMetria.Application.Workshops.WorkshopPage>))
+                    return (TResponse)(object)Outcome<GarajeMetria.Application.Workshops.WorkshopPage>.Fail(FailureCode.InvalidInput);
+                if (typeof(TResponse) == typeof(Outcome<GarajeMetria.Application.Users.LocalUserPage>))
+                    return (TResponse)(object)Outcome<GarajeMetria.Application.Users.LocalUserPage>.Fail(FailureCode.InvalidInput);
+                if (typeof(TResponse) == typeof(Outcome<GarajeMetria.Application.Users.AssignmentResult>))
+                    return (TResponse)(object)Outcome<GarajeMetria.Application.Users.AssignmentResult>.Fail(FailureCode.InvalidInput);
                 throw new InvalidOperationException("No validation result mapping is registered for this request.");
             }
         }
