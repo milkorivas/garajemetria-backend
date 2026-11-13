@@ -2,7 +2,7 @@
 
 | ID | Requerimiento | Prioridad | Estado |
 | --- | --- | --- | --- |
-| RF-003 | Recepción de eventos LPR | Por definir | Definido funcionalmente; diseño redactado e implementación pendiente |
+| RF-003 | Recepción de eventos LPR | Por definir | Recepción HTTP idempotente y retención implementadas; observabilidad y verificación transversal pendientes |
 
 ## 1. Objetivo y alcance
 
@@ -181,8 +181,13 @@ de token si el protocolo requiere otro formato.
 | CA-018 | Distinto orden del JSON, fechas equivalentes y dirección ausente/null permiten confirmar un reintento. Cambiar el texto original de matrícula o cualquier otro dato comparado produce conflicto. |
 
 Los casos de prueba previstos y la trazabilidad detallada se recogen en
-DESIGN-003; TASKS-003 planifica su ejecución pendiente. No hay implementación ni verificación
-de estos criterios todavía.
+DESIGN-003; TASKS-003 registra implementación y evidencia por tramo.
+La administración HTTP y la emisión/validación OAuth de dispositivos están
+implementadas y probadas en SQL aislado, incluida invalidación entre instancias.
+El publicador invalida versiones de dispositivos al desactivar talleres y la
+ingesta Application aplica idempotencia con persistencia atómica. T003-14 expone
+el contrato HTTP y T003-15 integra retención de auditoría/tokens en el supervisor
+existente. No hay verificación integral de todos los criterios todavía.
 
 ## 7. Capacidad de referencia y trabajo posterior
 

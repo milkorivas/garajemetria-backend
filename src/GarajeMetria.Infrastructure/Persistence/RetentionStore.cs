@@ -1,10 +1,14 @@
 using GarajeMetria.Application.Authentication;
+using GarajeMetria.Application.Lpr;
+using GarajeMetria.Infrastructure.Lpr;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using OpenIddict.EntityFrameworkCore.Models;
 
 namespace GarajeMetria.Infrastructure.Persistence;
 
-internal sealed class RetentionStore(AuthenticationDbContext db, AuthenticationOptions options, ILogger<RetentionStore> logger) : IAuthenticationRetentionStore
+internal sealed class RetentionStore(AuthenticationDbContext db, AuthenticationOptions options, ILogger<RetentionStore> logger,
+    LprOptions? lpr = null, DeviceOAuthOptions? deviceOAuth = null) : IAuthenticationRetentionStore
 {
     public Task<CleanupResult> CleanBatchAsync(string owner, RetentionPolicy policy, CancellationToken cancellationToken) =>
         SqlTransactions.ExecuteAsync(db, "authentication:cleanup", async ct =>
@@ -43,9 +47,25 @@ internal sealed class RetentionStore(AuthenticationDbContext db, AuthenticationO
             var assignmentIds = await db.AssignmentAudits.Where(x => x.OccurredAt <= auditCutoff)
                 .OrderBy(x => x.OccurredAt).ThenBy(x => x.Id).Select(x => x.Id).Take(policy.BatchSize).ToArrayAsync(ct);
             var assignmentAudits = await db.AssignmentAudits.Where(x => assignmentIds.Contains(x.Id)).ExecuteDeleteAsync(ct);
-            var more = refresh == policy.BatchSize || sessions == policy.BatchSize || audits == policy.BatchSize || assignmentAudits == policy.BatchSize;
+            var deviceAuditIds = await db.DeviceAdministrationAudits.Where(x => x.OccurredAt <= auditCutoff)
+                .OrderBy(x => x.OccurredAt).ThenBy(x => x.Id).Select(x => x.Id).Take(policy.BatchSize).ToArrayAsync(ct);
+            var deviceAudits = await db.DeviceAdministrationAudits.Where(x => deviceAuditIds.Contains(x.Id)).ExecuteDeleteAsync(ct);
+            // OpenIddict has no revocation timestamp. Expiration plus the margin is a
+            // conservative bound, including revoked tokens; unknown dates/states stay intact.
+            var tokenCutoff = now.UtcDateTime.AddHours(-(deviceOAuth?.DeviceTokenRetentionHours ?? 24));
+            var tokens = db.Set<OpenIddictEntityFrameworkCoreToken>();
+            // BIN2 still pads trailing spaces; a terminal marker makes these comparisons exact.
+            var deviceTokenIds = await tokens.Where(x => EF.Functions.Collate(x.Type + "#", "Latin1_General_100_BIN2") == "access_token#" &&
+                    (EF.Functions.Collate(x.Status + "#", "Latin1_General_100_BIN2") == "valid#" || EF.Functions.Collate(x.Status + "#", "Latin1_General_100_BIN2") == "revoked#") &&
+                    x.CreationDate != null && x.CreationDate <= tokenCutoff && x.ExpirationDate != null && x.ExpirationDate <= tokenCutoff &&
+                    (x.RedemptionDate == null || x.RedemptionDate <= tokenCutoff) &&
+                    db.LprDevices.Any(d => EF.Property<string>(d, "OAuthApplicationId") == x.Application!.Id))
+                .OrderBy(x => x.ExpirationDate).ThenBy(x => x.Id).Select(x => x.Id).Take(policy.BatchSize).ToArrayAsync(ct);
+            var deviceTokens = await tokens.Where(x => deviceTokenIds.Contains(x.Id)).ExecuteDeleteAsync(ct);
+            var more = refresh == policy.BatchSize || sessions == policy.BatchSize || audits == policy.BatchSize || assignmentAudits == policy.BatchSize ||
+                deviceAudits == policy.BatchSize || deviceTokens == policy.BatchSize;
             // Rate event retention is independent of session/audit retention.
-            var permitCutoff = now.AddSeconds(-options.RateLimitWindowSeconds);
+            var permitCutoff = now.AddSeconds(-Math.Max(options.RateLimitWindowSeconds, lpr?.RateLimitWindowSeconds ?? 0));
             var permitIds = await db.RatePermits.Where(x => x.AcceptedAt <= permitCutoff)
                 .OrderBy(x => x.AcceptedAt).ThenBy(x => x.Id).Select(x => x.Id).Take(policy.BatchSize).ToArrayAsync(ct);
             await db.RatePermits.Where(x => permitIds.Contains(x.Id)).ExecuteDeleteAsync(ct);
@@ -57,13 +77,15 @@ internal sealed class RetentionStore(AuthenticationDbContext db, AuthenticationO
                 await db.RatePartitions.Where(x => x.Id == partition && !db.RatePermits.Any(p => p.PartitionId == x.Id)).ExecuteDeleteAsync(ct);
             }
             more |= permitIds.Length == policy.BatchSize || partitions.Length == policy.BatchSize;
+            if (schedule.LeaseUntil <= await SqlTransactions.NowAsync(db, ct))
+                throw new PersistenceFailureException(FailureCode.ServiceUnavailable);
             if (!more)
             {
                 schedule.NextRunAt = now.AddHours(policy.CleanupIntervalHours);
                 schedule.LeaseUntil = now;
                 schedule.Owner = null;
             }
-            return new CleanupResult(true, refresh, sessions, audits + assignmentAudits, more);
+            return new CleanupResult(true, refresh, sessions, audits + assignmentAudits + deviceAudits, more, deviceTokens);
         }, logger, cancellationToken);
 
 }

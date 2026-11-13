@@ -181,6 +181,8 @@ public sealed class LoggingTests : IDisposable
                 .Error(new InvalidOperationException("private-password"), "private-message {Payload}", "private-payload");
             logger.ForContext("SourceContext", "Microsoft.EntityFrameworkCore.Database.Command").Error("SELECT private-token");
             logger.ForContext("SourceContext", "Microsoft.AspNetCore.Authentication").Warning("private-cookie");
+            logger.ForContext("SourceContext", "OpenIddict.Server.OpenIddictServerDispatcher").Information("private-client-secret private-access-token");
+            logger.ForContext("SourceContext", "Microsoft.IdentityModel.JsonWebTokens").Error("private-token-validation");
             logger.ForContext("SourceContext", "GarajeMetria.SafeCategory").Information("safe event");
         }
         var text = string.Join('\n', Directory.GetFiles(directory, "*.json").Select(File.ReadAllText));

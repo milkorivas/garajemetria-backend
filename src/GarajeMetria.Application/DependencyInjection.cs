@@ -13,8 +13,13 @@ public static class DependencyInjection
         services.AddMediatR(c => c.RegisterServicesFromAssemblyContaining<LoginCommand>());
         services.AddValidatorsFromAssemblyContaining<LoginValidator>();
         services.AddScoped<GarajeMetria.Application.Users.UserAdministrationAccess>();
+        services.AddScoped<GarajeMetria.Application.Lpr.DeviceAdministration>();
+        services.AddScoped<GarajeMetria.Application.Lpr.DeviceAccess>();
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(GarajeMetria.Application.Lpr.LprAdministrationAuthorizationBehavior<,>));
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(GarajeMetria.Application.Lpr.LprDeviceAuthorizationBehavior<,>));
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(GarajeMetria.Application.Lpr.LprEventQuotaBehavior<,>));
         return services;
     }
 }

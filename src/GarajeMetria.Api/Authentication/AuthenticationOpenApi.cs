@@ -9,7 +9,7 @@ public sealed class AuthenticationOpenApi(GarajeMetria.Application.Authenticatio
     {
         if (context.Description.ActionDescriptor.EndpointMetadata.OfType<AuthEndpointMetadata>().Any())
         {
-            if (context.Description.RelativePath == "api/auth/login")
+            if (operation.OperationId == "Login")
             {
                 // Document the schema without routing-level consumes metadata: the strict reader owns 415.
                 operation.RequestBody = new OpenApiRequestBody

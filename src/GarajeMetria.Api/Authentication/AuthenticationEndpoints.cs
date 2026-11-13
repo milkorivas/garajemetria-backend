@@ -36,7 +36,7 @@ public static class AuthenticationEndpoints
             if (parsed.Error is not null) return parsed.Error;
             var result = await sender.Send(new LoginCommand(parsed.Request!.Username, parsed.Request.Password), ct);
             return Respond(context, result, clock);
-        }).WithSummary("Iniciar sesión con credenciales corporativas")
+        }).WithName("Login").WithSummary("Iniciar sesión con credenciales corporativas")
             .WithDescription("Requiere bootstrap antiforgery y cabecera X-CSRF-Token. El refresh se entrega solo en cookie Secure/HttpOnly/SameSite=Strict.")
             .Produces<LoginResponse>().ProducesProblem(400).ProducesProblem(401)
             .ProducesProblem(403).ProducesProblem(413).ProducesProblem(415).ProducesProblem(429).ProducesProblem(500).ProducesProblem(503);

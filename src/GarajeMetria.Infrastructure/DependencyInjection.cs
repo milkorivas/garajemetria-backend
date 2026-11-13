@@ -1,15 +1,18 @@
 using GarajeMetria.Application.Authentication;
 using GarajeMetria.Application.Diagnostics;
+using GarajeMetria.Application.Lpr;
 using GarajeMetria.Application.Users;
 using GarajeMetria.Application.Workshops;
 using GarajeMetria.Infrastructure.Authentication;
 using GarajeMetria.Infrastructure.Diagnostics;
+using GarajeMetria.Infrastructure.Lpr;
 using GarajeMetria.Infrastructure.Persistence;
 using GarajeMetria.Infrastructure.Workshops;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.IdentityModel.Tokens;
 
 namespace GarajeMetria.Infrastructure;
 
@@ -95,6 +98,34 @@ public static class DependencyInjection
         services.AddScoped<IAuthenticationSessionRepository>(sp => sp.GetRequiredService<AuthenticationRepository>());
         services.AddScoped<ISessionStatusQuery>(sp => sp.GetRequiredService<AuthenticationRepository>());
         services.AddScoped<IUnitOfWork, AuthenticationUnitOfWork>();
+        services.AddOpenIddict().AddCore(options =>
+        {
+            options.UseEntityFrameworkCore().UseDbContext<AuthenticationDbContext>();
+            options.DisableEntityCaching();
+        });
+        var lprPersistence = configuration.GetSection("Lpr").Get<LprPersistenceOptions>() ?? new();
+        lprPersistence.Validate();
+        services.AddSingleton(lprPersistence);
+        var (lpr, deviceOAuth) = LprConfiguration.Read(configuration);
+        services.AddSingleton(lpr);
+        services.AddSingleton(deviceOAuth);
+        services.AddSingleton(new DeviceTokenLifetime(TimeSpan.FromMinutes(deviceOAuth.AccessTokenMinutes)));
+        services.AddSingleton<DeviceOAuthCertificates>();
+        services.AddKeyedSingleton<SigningCredentials>("lpr", (sp, _) => new X509SigningCredentials(
+            sp.GetRequiredService<DeviceOAuthCertificates>().Signing, SecurityAlgorithms.RsaSha256));
+        services.AddKeyedSingleton<EncryptingCredentials>("lpr", (sp, _) => new X509EncryptingCredentials(
+            sp.GetRequiredService<DeviceOAuthCertificates>().Encryption, SecurityAlgorithms.RsaOAEP, SecurityAlgorithms.Aes256CbcHmacSha512));
+        services.AddHostedService<DeviceOAuthStartup>();
+        services.AddScoped<IDeviceCredentialService, DeviceCredentialService>();
+        services.AddScoped<ILprRateLimitStore, LprRateLimitStore>();
+        services.AddScoped<LprRepository>();
+        services.AddScoped<ILprDeviceRepository>(sp => sp.GetRequiredService<LprRepository>());
+        services.AddScoped<ILprEventRepository>(sp => sp.GetRequiredService<LprRepository>());
+        services.AddScoped<ILprDeviceAdministrationQuery>(sp => sp.GetRequiredService<LprRepository>());
+        services.AddScoped<IDeviceAuthorizationQuery>(sp => sp.GetRequiredService<LprRepository>());
+        services.AddScoped<IDeviceAdministrationAuditRepository>(sp => sp.GetRequiredService<LprRepository>());
+        services.AddScoped<ILprClock, LprClock>();
+        services.AddScoped<ILprUnitOfWork, LprUnitOfWork>();
         services.AddScoped<RateLimitStore>();
         services.AddScoped<IAuthenticationRateLimitStore>(sp => sp.GetRequiredService<RateLimitStore>());
         services.AddScoped<IAuthenticationRetentionStore, RetentionStore>();

@@ -6,7 +6,8 @@ public enum FailureCode
 {
     InvalidInput, InvalidCredentials, NoRole, NoWorkshop, InactiveWorkshop, SessionEnded,
     DirectoryUnavailable, ServiceUnavailable, InternalError, OperationOutcomeUnknown, RateLimited,
-    Forbidden, ResourceNotFound, AssignmentConflict, PreconditionFailed
+    Forbidden, ResourceNotFound, AssignmentConflict, PreconditionFailed,
+    InvalidDeviceToken, DeviceForbidden, DeviceConflict, EventConflict, CaptureOutsideWindow
 }
 
 public sealed record Failure(FailureCode Code, int? RetryAfterSeconds = null);
@@ -14,6 +15,13 @@ public interface IOutcome
 {
     bool Succeeded { get; }
     Failure? Error { get; }
+}
+
+// Allows new request families to map validation/authorization without response reflection.
+public interface IFailureResponseRequest<out TResponse>
+{
+    TResponse Fail(FailureCode code);
+    TResponse Fail(Failure failure);
 }
 
 public sealed record Outcome<T>(T? Value, Failure? Error) : IOutcome
@@ -112,7 +120,7 @@ public sealed record AuthenticationResult(TokenPair Tokens, AuthenticatedUser? U
 
 public sealed record RetentionPolicy(int SessionRetentionDays, int RefreshRetentionHoursAfterSessionEnd,
     int AuditRetentionDays, int CleanupIntervalHours, int BatchSize);
-public sealed record CleanupResult(bool Acquired, int RefreshRecords, int Sessions, int AuditEntries, bool More);
+public sealed record CleanupResult(bool Acquired, int RefreshRecords, int Sessions, int AuditEntries, bool More, int DeviceTokens = 0);
 public interface IAuthenticationRetentionStore
 {
     Task<CleanupResult> CleanBatchAsync(string owner, RetentionPolicy policy, CancellationToken cancellationToken);

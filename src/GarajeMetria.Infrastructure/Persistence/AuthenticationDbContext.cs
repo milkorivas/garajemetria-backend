@@ -1,4 +1,5 @@
 using GarajeMetria.Domain.Authentication;
+using GarajeMetria.Domain.Lpr;
 using GarajeMetria.Domain.Users;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -78,9 +79,17 @@ public sealed class AuthenticationDbContext(DbContextOptions<AuthenticationDbCon
     public DbSet<RatePermit> RatePermits => Set<RatePermit>();
     public DbSet<RateConfiguration> RateConfigurations => Set<RateConfiguration>();
     public DbSet<CleanupSchedule> CleanupSchedules => Set<CleanupSchedule>();
+    public DbSet<LprDevice> LprDevices => Set<LprDevice>();
+    public DbSet<LprEventRow> LprEvents => Set<LprEventRow>();
+    public DbSet<DeviceAdministrationAuditRow> DeviceAdministrationAudits => Set<DeviceAdministrationAuditRow>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder) =>
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.UseOpenIddict();
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AuthenticationDbContext).Assembly);
+        foreach (var entity in modelBuilder.Model.GetEntityTypes().Where(x => x.ClrType.Namespace == "OpenIddict.EntityFrameworkCore.Models"))
+            foreach (var relation in entity.GetForeignKeys()) relation.DeleteBehavior = DeleteBehavior.Restrict;
+    }
 }
 
 internal sealed class LocalUserMapping : IEntityTypeConfiguration<LocalUser>

@@ -17,7 +17,9 @@ los diseños afectados deben mantenerse coherentes.
 La solución implementa el tramo RF-001 con persistencia SQL Server y
 OpenAPI/Swagger UI, además de sus pruebas y comprobaciones de arquitectura.
 La verificación contra AD de pruebas y la restauración física aislada siguen
-pendientes. Los casos administrativos y LPR no están implementados.
+pendientes. RF-003 incorpora administración HTTP y OAuth de dispositivos;
+también implementa invalidación por catálogo, recepción HTTP idempotente de
+eventos y retención coordinada de auditoría y metadatos de tokens.
 El estado y la preparación operativa se detallan en el
 [runbook de autenticación](runbooks/authentication.md).
 
@@ -162,8 +164,23 @@ El [diseño DESIGN-003](design/DESIGN-003-lpr-event-ingestion.md) selecciona
 OpenIddict para servidor y validación local, con stores EF en Infrastructure
 y protocolo HTTP en Api. Añade una versión persistida por dispositivo para
 invalidación inmediata, coordinada con publicación de catálogo; las capas
-internas no dependen de OpenIddict. La implementación está pendiente y no cambia
-la autenticación de usuarios de RF-001. Los errores del endpoint de token
+internas no dependen de OpenIddict. T003-01 a T003-15 preparan dependencias y
+entorno, e implementan el dominio de dispositivos/eventos/matrículas y los
+contratos, validadores y autorización previa de Application, junto con stores
+OAuth Core y persistencia LPR en Infrastructure. Incluyen configuración privada,
+cuotas SQL independientes y casos de uso administrativos con auditoría/credenciales
+atómicos. Las ocho rutas administrativas requieren Bearer de Administrador y
+ETag/If-Match en modificaciones. `/connect/token` exige Basic/form y Client
+Credentials; el esquema exclusivo de dispositivos valida entrada de token y
+estado/versión/taller en SQL. El publicador renueva versiones de dispositivos en
+la transacción que desactiva sus talleres. La ingesta Application revalida bajo
+locks, consulta UUID antes de la ventana y confirma duplicados con su recibo
+original. Una colisión identificada y revertida solo permite releer, sin repetir
+escrituras. POST `/api/lpr/events` adapta JSON estricto snake_case y números
+exactos a ese caso de uso, con esquema de dispositivo y cuotas. La limpieza
+existente incorpora auditoría de dispositivos y tokens expirados con margen,
+sin eliminar eventos, dispositivos ni secretos. Se conserva RF-001.
+Los errores del endpoint de token
 siguen OAuth, separados de ProblemDetails para recursos.
 
 Se utilizan HTTPS, CORS con orígenes explícitos, límites de peticiones y

@@ -40,7 +40,8 @@ public sealed class DependencyTests
         using var assets = LoadAssets("Application");
         Assert.DoesNotContain(assets.RootElement.GetProperty("libraries").EnumerateObject(),
             library => IsDataAccessDependency(library.Name.Split('/')[0]) ||
-                       library.Name.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal));
+                       library.Name.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal) ||
+                       library.Name.StartsWith("OpenIddict", StringComparison.Ordinal));
         AssertFrameworkBoundaries(assets);
         Assert.DoesNotContain(assets.RootElement.GetProperty("libraries").EnumerateObject(),
             library => library.Name.StartsWith("Serilog", StringComparison.Ordinal));

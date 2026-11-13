@@ -8,7 +8,7 @@ public sealed class WorkshopOpenApi(WorkshopCatalogOptions options) : IOpenApiOp
 {
     public Task TransformAsync(OpenApiOperation operation, OpenApiOperationTransformerContext context, CancellationToken cancellationToken)
     {
-        if (context.Description.RelativePath != "api/workshops") return Task.CompletedTask;
+        if (operation.OperationId != "ListWorkshops") return Task.CompletedTask;
         operation.Parameters =
         [
             new OpenApiParameter { Name = "pageNumber", In = ParameterLocation.Query, Schema = new OpenApiSchema { Type = JsonSchemaType.Integer, Minimum = "1", Default = System.Text.Json.Nodes.JsonValue.Create(1) } },

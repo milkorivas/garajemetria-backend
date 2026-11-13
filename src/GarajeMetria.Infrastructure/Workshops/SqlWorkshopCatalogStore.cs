@@ -46,6 +46,10 @@ public sealed class SqlWorkshopCatalogStore(AuthenticationDbContext db, ILogger<
                 workshop.IsActive = entry.IsActive;
             }
             var ids = plan.DeactivatedIds.ToArray();
+            // All device writes acquire the catalog lock first. Invalidate even inactive/revoked
+            // devices, without changing their own activity, credentials or workshop association.
+            var devices = await db.LprDevices.Where(x => ids.Contains(x.WorkshopId)).ToListAsync(ct);
+            foreach (var device in devices) device.InvalidateAuthorizationForWorkshop(now);
             var affected = await db.Sessions.Where(s => s.ClosedAt == null && s.Role == WorkshopCatalog.DeactivatedSessionRole &&
                 db.Users.Any(u => u.Id == s.UserId && ids.Contains(u.DefaultWorkshopId!))).ToListAsync(ct);
             foreach (var session in affected) session.Close(now, WorkshopCatalog.DeactivatedSessionReason);

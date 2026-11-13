@@ -1,5 +1,12 @@
 # GarajeMetría — Generación de secretos
 
+Desde RF-003/T003-08, el nuevo binario también requiere las secciones privadas
+`Lpr` y `DeviceOAuth`, con certificados propios de firma/cifrado. Incorporar el
+[ejemplo LPR](lpr.example.json) según la
+[guía de preparación](lpr-test-preparation.md#configuración-obligatoria-desde-t003-08)
+sin sustituir las secciones existentes. Los certificados temporales de tests
+no son material de despliegue.
+
 ## Logs JSON con Serilog
 
 Añadir `FileLogging` al JSON privado señalado por `GARAJEMETRIA_PRIVATE_CONFIG`:

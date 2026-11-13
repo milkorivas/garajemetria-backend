@@ -1,0 +1,25 @@
+{
+  "Lpr": {
+    "RateLimitNamespace": "garajemetria-lpr-v1",
+    "MaxEventAgeMinutes": 30,
+    "MaxFutureMinutes": 30,
+    "RequestTimeoutSeconds": 15,
+    "LockTimeoutSeconds": 5,
+    "RateLimitWindowSeconds": 60,
+    "EventsPerDevice": 120,
+    "EventsPerIp": 1200,
+    "AdminWritesPerUser": 30
+  },
+  "DeviceOAuth": {
+    "Issuer": "https://lpr.example.test/",
+    "Audience": "garajemetria-lpr",
+    "AccessTokenMinutes": 15,
+    "SigningCertificate": "C:/Private/GarajeMetria/lpr-signing.pfx",
+    "SigningCertificatePassword": "<private-signing-password>",
+    "EncryptionCertificate": "C:/Private/GarajeMetria/lpr-encryption.pfx",
+    "EncryptionCertificatePassword": "<private-encryption-password>",
+    "TokensPerClient": 10,
+    "TokensPerIp": 120,
+    "DeviceTokenRetentionHours": 24
+  }
+}

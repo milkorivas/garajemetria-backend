@@ -38,6 +38,8 @@ public sealed class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidat
             var result = await validator.ValidateAsync(request, cancellationToken);
             if (!result.IsValid)
             {
+                if (request is IFailureResponseRequest<TResponse> failureResponse)
+                    return failureResponse.Fail(FailureCode.InvalidInput);
                 if (typeof(TResponse) == typeof(Outcome<AuthenticationResult>))
                     return (TResponse)(object)Outcome<AuthenticationResult>.Fail(FailureCode.InvalidInput);
                 if (typeof(TResponse) == typeof(Outcome<GarajeMetria.Application.Workshops.WorkshopPage>))

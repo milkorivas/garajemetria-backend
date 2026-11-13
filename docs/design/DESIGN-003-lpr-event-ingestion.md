@@ -3,10 +3,10 @@
 | Campo | Valor |
 | --- | --- |
 | Requerimiento | [RF-003](../requirements/RF-003-lpr-event-ingestion.md) |
-| Estado | Diseño técnico para implementación; código y verificaciones pendientes |
+| Estado | Recepción HTTP idempotente y retención implementadas; observabilidad y verificación transversal pendientes |
 | Plataforma | C# 14, .NET 10, ASP.NET Core, EF Core y SQL Server |
 | Dependencias | RF-001, RF-002 y RF-009; interpretación posterior en RF-004 |
-| Plan de tareas | [TASKS-003](../tasks/TASKS-003-lpr-event-ingestion.md), redactado; ejecución pendiente |
+| Plan de tareas | [TASKS-003](../tasks/TASKS-003-lpr-event-ingestion.md), T003-01 a T003-15 implementadas |
 
 ## 1. Alcance y decisiones
 
@@ -40,6 +40,14 @@ paquetes en la misma versión. Su documentación declara soporte ASP.NET Core
 10.0. Antes del primer restore de implementación, comprobar compatibilidad y
 avisos de seguridad; si hay que cambiar esta referencia, registrar la versión
 estable elegida, sin incorporar previews ni cambiar .NET 10 o EF Core 10.
+
+T003-01 verificada el 13 de noviembre de 2026: paquetes fijados con la propiedad
+común `OpenIddictVersion=7.7.2`, restore/build compatibles y auditoría NuGet de
+dependencias transitivas sin avisos conocidos. Ese primer tramo no registró
+stores ni middleware; T003-06 incorpora Core/stores y T003-11 añade transporte
+y Validation.ServerIntegration para validación local.
+Entorno sintético y límites en
+[preparación de pruebas](../configuration/lpr-test-preparation.md).
 
 Api referencia las integraciones de servidor y validación ASP.NET Core de
 OpenIddict; Infrastructure referencia Core y EntityFrameworkCore. Registrar
@@ -83,8 +91,8 @@ por defecto al único cliente autorizado, y devolverlo explícitamente. No
 aceptar `offline_access`, `openid`, password, refresh o authorization code.
 Conceder solo permisos OpenIddict de endpoint token, grant Client Credentials
 y ese scope. No ofrecer registro dinámico, introspección pública ni revocación
-anónima. Discovery/JWKS, si los publica la integración, solo exponen metadatos
-y claves públicas; deben constar en OpenAPI/operación como accesos anónimos.
+anónima. T003-11 deshabilita discovery y JWKS públicos; la validación local usa
+las claves del servidor mediante `UseLocalServer()`.
 
 Respuesta 200, `Cache-Control: no-store`, `Pragma: no-cache`:
 
@@ -97,7 +105,9 @@ Respuesta 200, `Cache-Control: no-store`, `Pragma: no-cache`:
 }
 ```
 
-`expires_in` refleja la configuración efectiva; 900 segundos es el valor inicial.
+`expires_in` refleja los segundos restantes según el reloj SQL compartido;
+la duración inicial es 900 segundos. Se conservan las fechas del grant aunque
+el host tenga un reloj distinto; el scope se devuelve también cuando se solicita explícitamente.
 No devolver refresh token, id token, secretos ni datos de usuario.
 
 | Situación | Respuesta OAuth |
@@ -408,6 +418,24 @@ Todos pasan por validación asíncrona MediatR antes de handlers. La validación
 protocolo OAuth sigue en su biblioteca; su adaptación no sustituye validación
 de Application. No incluir secretos en ToString, logging behavior o excepciones.
 
+T003-04/05 implementan `LprEvent`, `LprCaptureWindow` y contratos de este apartado.
+La comparación recibe los valores originales del reintento, sin reclasificar el
+registro; la ventana solo se utiliza al decidir un evento nuevo. UUID de evento
+con variante RFC y versiones 1–8, sin Nil/Max; decimal exactamente representable
+con ocho posiciones, permitiendo ceros decimales sobrantes sin redondear.
+
+Los requests LPR producen `Outcome<T>` mediante `IFailureResponseRequest<T>`.
+El comportamiento asíncrono existente valida primero; después los comportamientos
+restringidos a administración LPR o dispositivo comprueban sesión/rol o identidad,
+scope, caducidad y estado vigente antes del handler. No consultan eventos ni
+revelan recursos al rechazar. La barrera inicial no sustituye la revalidación
+dentro de la transacción de T003-09/11/13. PrepareDeviceTokenGrant no utiliza un
+access token previo: T003-11 implementa validación/autenticación OAuth y su handler.
+ValidateDeviceAccess comparte la coordinación `DeviceAccess` con el comportamiento
+de autorización, sin recursión MediatR. T003-07 añade persistencia, T003-09 los
+handlers administrativos y T003-10/11 sus rutas y OAuth. La ruta y adaptación
+HTTP de ingesta se implementan en T003-14. T003-13 implementa `ReceiveLprEventHandler`.
+
 ### 6.1. Orden de coordinación
 
 Reutilizar el contexto local `AuthenticationDbContext` y `SqlTransactions`,
@@ -482,6 +510,30 @@ preparar backup/restauración aislada. Un rollback que elimine tablas nuevas es
 destructivo y requiere preservar datos; deshabilitar rutas no implica borrarlos.
 Incorporar migración y snapshot con `--context AuthenticationDbContext`.
 
+T003-06/07: migración `20261113115955_LprPersistence` generada y verificada en
+SQL aislado vacío y desde WorkshopAssignments con datos sintéticos RF-001/002/009.
+No aplicada a la base local del desarrollador ni a producción. Los stores Core
+usan el mismo contexto que `LprUnitOfWork`, con caché deshabilitada. El vínculo
+`OAuthApplicationId` es único/requerido/restrictivo y toma `deviceId:N` como clave
+interna de aplicación OAuth; `client_id` mantiene el prefijo `lpr_` del diseño.
+El adaptador de credenciales de T003-09 utiliza esa clave.
+
+Las filas Infrastructure de eventos conservan diagnóstico/versionado sin
+construir de nuevo un evento con el clasificador actual. La igualdad de valores
+proyectados se decide mediante `LprObservation` de Domain; no mediante colación
+SQL. La auditoría usa snapshots tipados, separados de la entidad de dominio.
+Actualizaciones de dispositivo son condicionales sobre Version; las lecturas
+no reutilizan entidades seguidas. Se comprueban precisión temporal/decimal,
+FKs, unicidad, rollback y commit indeterminado en SQL real.
+
+La unidad de trabajo comparte los locks acordados y añade timeout total y de
+locks mediante `LprPersistenceOptions`, enlazados a cancelación. Un fallo Outcome
+revierte cambios incluso si el gestor OAuth ejecutó SaveChanges. El timeout
+interno con rollback confirmado es ServiceUnavailable; cancelación del consumidor
+se propaga y un commit indeterminado no se convierte en éxito ni se reintenta.
+T003-08 completa configuración/cuotas y T003-09 aporta administración con
+revalidación transaccional. T003-11 añade emisión; T003-13 implementa ingesta.
+
 ## 8. Configuración, cuotas y conservación
 
 Opciones tipadas obligatorias en archivo privado externo, sin datos reales en
@@ -498,13 +550,41 @@ ejemplos. Valores iniciales del diseño, configurables y validados al arranque:
 | Lpr:EventsPerDevice / EventsPerIp | 120 / 1200 por ventana. |
 | DeviceOAuth:TokensPerClient / TokensPerIp | 10 / 120 por ventana. |
 | Lpr:AdminWritesPerUser | 30 por ventana. |
+| Lpr:RateLimitNamespace | Identificador estable común al despliegue, obligatorio, hasta 128 caracteres; distinto lógicamente del namespace de login. |
+| DeviceOAuth:DeviceTokenRetentionHours | 24; positivo, hasta 876000. Su limpieza se integra en T003-15, no durante este tramo. |
 
 Son límites de protección iniciales, no objetivos de capacidad prometidos.
+T003-08 implementa validación al arranque, incluidos certificado privado RSA de
+al menos 2048 bits y uso de clave compatible cuando se declara. Certificados y
+contraseñas están fuera del content root. Issuer y audience no pueden coincidir
+con los de usuario. El archivo privado requiere las secciones del
+[ejemplo LPR](../configuration/lpr.example.json); no copiar valores de ejemplo a producción.
 Reutilizar el patrón SQL de cuotas, ampliando contratos/options sin acoplar LPR
 a nombres de política de login. Namespaces separados `lpr:*`, reloj SQL y
 fingerprint de configuración común entre instancias; desacuerdo o SQL fallido
 produce 503. Verificar en pruebas la ampliación, porque el RateLimitStore actual
 solo reconoce las políticas de autenticación de usuarios.
+
+`LprRateLimitStore` implementa las políticas separadas usando las tablas de cuotas
+existentes y sin el gate de disponibilidad RF-001. Incluye fingerprint de opciones
+y certificados comunes (thumbprints, no rutas locales ni contraseñas). Cada
+admisión verifica configuración y cuota en transacciones separadas de negocio.
+Para cambiar opciones/certificados, coordinar todas las instancias y un namespace
+de despliegue nuevo; no sobrescribir automáticamente un fingerprint discrepante.
+Esto reinicia las cuotas de esa generación y debe planificarse operativamente.
+
+Las particiones siguen aisladas por hash de namespace/política/sujeto. El lock
+de datos usa el prefijo histórico `authentication:quota:` para coordinar con el
+limpiador de esas mismas tablas. La limpieza usa la mayor ventana configurada
+entre login y LPR, evitando borrar permisos LPR aún vigentes. No introduce limpieza
+de eventos, dispositivos o secretos. Las cuotas tienen timeout y cancelación propios.
+
+La metadata Api activa cuota IP antes de autenticación y timeout total; errores
+Token mantienen JSON OAuth y recursos ProblemDetails. Administración usa timeout
+sin cuota IP adicional; su cuota por usuario está en Application. El pipeline de
+eventos cobra por dispositivo después de autorización y antes del handler,
+también en duplicados. T003-10/11 conectan las rutas administrativas y la cuota
+por clientId al parsing OAuth. La recepción HTTP de eventos queda en T003-14.
 
 La cuota IP previa protege token/ingesta antes de hashing costoso. La cuota por
 cliente se aplica al clientId parseable (sin distinguir existencia en respuesta),
@@ -525,6 +605,22 @@ margen de 24 horas configurable (`DeviceTokenRetentionHours`); no eliminar token
 vigentes, clientes ni dispositivos. Deshabilitar tareas de pruning independientes
 que eludan esa coordinación. No conservar cuerpos completos de tokens.
 
+T003-15 integra ambos lotes en `RetentionStore` y en el supervisor existente,
+sin Quartz ni otro ejecutor de pruning. Auditoría de dispositivos usa el corte
+inclusivo `OccurredAt <= now - AuditRetentionDays`. Tokens: solo `access_token`
+de aplicaciones vinculadas a dispositivos, estados exactos `valid`/`revoked`,
+CreationDate y ExpirationDate conocidas y anteriores o iguales al corte de
+DeviceTokenRetentionHours. RedemptionDate reciente también impide borrar.
+La comparación de estados/tipos es ordinal en el adaptador SQL Server.
+
+OpenIddict no conserva una fecha de revocación: el margen se cuenta desde la
+expiración, también para revocados. Los revocados con expiración futura, fechas
+desconocidas, tipos/estados ajenos o aplicaciones sin dispositivo se conservan.
+Lotes ordenados por fecha e Id, con el mismo lease/calendario y transacción de
+RF-001; una comprobación final del reloj SQL revierte el lote si venció el lease.
+CleanupResult incorpora DeviceTokens y los logs del supervisor registran ese
+recuento, sin tokens ni secretos. No requiere migración nueva.
+
 Logs estructurados: operación, resultado, correlación, dispositivo interno y
 recuentos, sin matrícula, JSON completo, cabecera Authorization ni secreto.
 Desactivar logging de payloads/tokens en OpenIddict/IdentityModel y sensible EF.
@@ -535,7 +631,10 @@ existente sin publicar cadenas o esquemas internos.
 
 ## 9. Pruebas y trazabilidad
 
-Todas las pruebas siguientes están previstas, no ejecutadas. Domain/Application
+La matriz siguiente describe la verificación completa, aún pendiente. Las
+pruebas de preparación, Domain, Application, persistencia y OAuth HTTP de T003-01 a
+T003-15 están ejecutadas y registradas en TASKS-003 / 9; incluyen ingesta HTTP
+idempotente y retención, pero no cierran toda la matriz transversal. Domain/Application
 usan reloj y repositorios dobles sin red o base de datos. HTTP con
 WebApplicationFactory; persistencia y OAuth EF con SQL Server real aislado,
 nunca EF InMemory ni SQLite. Datos sintéticos. La suite completa está sujeta a
@@ -575,6 +674,37 @@ invalidación; ingesta; límites/retención; OpenAPI y runbook; pruebas trazable
 Actualizar DESIGN-009 al implementar su extensión y registrar limitaciones de
 verificación. No añadir tareas marcadas como completadas ni aplicar migraciones
 por haber escrito este diseño.
+
+El tramo T003-01 a T003-15 implementa preparación, dominio, contratos/persistencia,
+cuotas/configuración, administración HTTP con auditoría y servidor OAuth.
+El esquema de dispositivos valida firma/cifrado, issuer, audiencia, entrada de
+token y estado/versión/taller actuales en SQL. Se verifica la invalidación entre
+instancias y una rotación entre preparación del grant y firma. Las rutas nuevas
+tienen OpenAPI y errores seguros; los logs excluyen diagnósticos OpenIddict e
+IdentityModel que puedan contener credenciales o tokens.
+
+T003-12 renueva ambas versiones de todos los dispositivos del taller desactivado
+en la transacción del catálogo; reactivar conserva esa invalidación y los
+secretos propios. DESIGN-009 recoge la extensión y sus pruebas de rollback.
+
+T003-13 añade ingesta por MediatR con revalidación bajo locks y una lectura de
+reloj compartido dentro de cada transacción. Consulta el UUID antes de aplicar
+la ventana a eventos nuevos y devuelve el recibo original del duplicado sin
+reclasificar. Solo una colisión SQL 2627 identificada como `PK_LprEvents`, con
+inserción pendiente y rollback confirmado, se adapta a
+`LprEventIdentityCollisionException`; el handler relee en otra transacción
+autorizada sin repetir la inserción. Otros fallos y commit incierto se propagan;
+el consumidor puede reconciliar mediante una repetición explícita con el UUID.
+
+T003-14 publica POST `/api/lpr/events`: parser JSON UTF-8 estricto, bytes/profundidad
+acotados, UUID canónico y fechas sin truncar. La confianza se normaliza léxicamente
+antes de convertir a decimal, rechazando precisión que requeriría redondeo y
+aceptando ceros sobrantes/notación exponencial exacta. Respuestas snake_case
+201/200 sin matrícula ni Location, cuota IP y por dispositivo, errores seguros y
+esquema exclusivo con scope de escritura. T003-15 completa retención coordinada.
+
+Continuar con T003-16 para completar observabilidad/OpenAPI, después pruebas
+transversales y runbook final. El endpoint ya se puede probar según la guía de preparación.
 
 OpenAPI deberá describir Client Credentials para ingesta, Basic/form para token,
 Bearer de usuarios para administración, todos los DTOs, errores y precondiciones;

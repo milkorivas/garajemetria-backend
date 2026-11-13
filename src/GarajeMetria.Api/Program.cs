@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using GarajeMetria.Api.Authentication;
 using GarajeMetria.Api.Diagnostics;
+using GarajeMetria.Api.Lpr;
 using GarajeMetria.Api.Users;
 using GarajeMetria.Api.Workshops;
 using GarajeMetria.Application;
@@ -31,6 +32,9 @@ try
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddScoped<ICurrentUserContext, HttpCurrentUserContext>();
     GarajeMetria.Infrastructure.DependencyInjection.AddInfrastructure(builder.Services, builder.Configuration);
+    foreach (var key in new[] { "DeviceOAuth:SigningCertificate", "DeviceOAuth:EncryptionCertificate" })
+        if (ApiConfiguration.IsInside(builder.Environment.ContentRootPath, builder.Configuration[key]!))
+            throw new InvalidOperationException("Device OAuth certificates must be outside the application content root.");
     builder.Services.AddExceptionHandler<ApiExceptionHandler>();
     builder.Services.AddProblemDetails(o => o.CustomizeProblemDetails = context =>
     {
@@ -53,6 +57,7 @@ try
     builder.Services.AddDataProtection().SetApplicationName("GarajeMetria.Api")
         .PersistKeysToFileSystem(new DirectoryInfo(http.DataProtectionKeyPath)).ProtectKeysWithCertificate(protectionCertificate);
     builder.Services.AddAuthentication("Bearer").AddScheme<AuthenticationSchemeOptions, SessionBearerHandler>("Bearer", _ => { });
+    builder.Services.AddDeviceOAuth();
     builder.Services.AddAuthorizationBuilder().SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
     builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(http.AllowedOrigins)
         .AllowCredentials().WithMethods("GET", "POST", "PUT", "OPTIONS")
@@ -70,6 +75,7 @@ try
         o.AddOperationTransformer<AuthenticationOpenApi>();
         o.AddOperationTransformer<WorkshopOpenApi>();
         o.AddOperationTransformer<UserAdministrationOpenApi>();
+        o.AddOperationTransformer<LprOpenApi>();
     });
     builder.Services.AddHealthDiagnostics();
     var app = builder.Build();
@@ -77,6 +83,7 @@ try
     app.UseExceptionHandler(new ExceptionHandlerOptions { SuppressDiagnosticsCallback = _ => true });
     app.UseMiddleware<RequestCancellationLoggingMiddleware>();
     if (http.TrustedProxies.Length > 0) app.UseForwardedHeaders();
+    app.UseMiddleware<DeviceTokenHttpsMiddleware>();
     app.UseHttpsRedirection();
     if (http.EnableApiDocumentation)
     {
@@ -85,6 +92,9 @@ try
     }
     app.UseRouting();
     app.UseCors();
+    app.UseMiddleware<LprFailureMiddleware>();
+    app.UseMiddleware<GarajeMetria.Api.Lpr.LprIpRateLimitMiddleware>();
+    app.UseMiddleware<DeviceTokenBodyMiddleware>();
     app.UseRateLimiter();
     app.UseMiddleware<AuthenticationAvailabilityMiddleware>();
     app.UseAuthentication();
@@ -92,6 +102,9 @@ try
     app.MapAuthenticationEndpoints();
     app.MapWorkshopEndpoints();
     app.MapUserAdministrationEndpoints();
+    app.MapLprAdministrationEndpoints();
+    app.MapDeviceOAuth();
+    app.MapLprEventEndpoints();
     app.MapHealthEndpoints();
     app.Run();
 }

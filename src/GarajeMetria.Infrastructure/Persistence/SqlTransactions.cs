@@ -12,9 +12,9 @@ namespace GarajeMetria.Infrastructure.Persistence;
 
 internal static class SqlTransactions
 {
-    public static async Task LockAsync(AuthenticationDbContext db, string resource, CancellationToken cancellationToken)
+    public static async Task LockAsync(AuthenticationDbContext db, string resource, CancellationToken cancellationToken, int lockTimeoutMilliseconds = 10000)
     {
-        await db.Database.ExecuteSqlInterpolatedAsync($"DECLARE @result int; EXEC @result = sys.sp_getapplock @Resource={resource}, @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout=10000; IF @result < 0 THROW 51000, 'Authentication lock unavailable', 1;", cancellationToken);
+        await db.Database.ExecuteSqlInterpolatedAsync($"DECLARE @result int; EXEC @result = sys.sp_getapplock @Resource={resource}, @LockMode='Exclusive', @LockOwner='Transaction', @LockTimeout={lockTimeoutMilliseconds}; IF @result < 0 THROW 51000, 'Authentication lock unavailable', 1;", cancellationToken);
     }
 
     public static async Task<DateTimeOffset> NowAsync(AuthenticationDbContext db, CancellationToken cancellationToken) =>
@@ -22,7 +22,8 @@ internal static class SqlTransactions
             .SingleAsync(cancellationToken);
 
     public static async Task<T> ExecuteAsync<T>(AuthenticationDbContext db, string resource,
-        Func<CancellationToken, Task<T>> action, ILogger logger, CancellationToken cancellationToken)
+        Func<CancellationToken, Task<T>> action, ILogger logger, CancellationToken cancellationToken, int lockTimeoutMilliseconds = 10000,
+        bool rollbackFailedOutcomes = false)
     {
         IDbContextTransaction? transaction = null;
         var committing = false;
@@ -30,9 +31,15 @@ internal static class SqlTransactions
         try
         {
             transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-            await LockAsync(db, resource, cancellationToken);
+            await LockAsync(db, resource, cancellationToken, lockTimeoutMilliseconds);
             db.ChangeTracker.Clear();
             var result = await action(cancellationToken);
+            if (rollbackFailedOutcomes && result is IOutcome { Succeeded: false })
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                db.ChangeTracker.Clear();
+                return result;
+            }
             await db.SaveChangesAsync(cancellationToken);
             committing = true;
             await transaction.CommitAsync(cancellationToken);

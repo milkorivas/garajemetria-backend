@@ -15,7 +15,9 @@ public sealed class SessionBearerHandler(IOptionsMonitor<AuthenticationSchemeOpt
     {
         // Auth endpoints always share the anonymous antiforgery context.
         if (Context.GetEndpoint()?.Metadata.GetMetadata<AuthEndpointMetadata>() is not null ||
-            Context.GetEndpoint()?.Metadata.GetMetadata<GarajeMetria.Api.Diagnostics.HealthEndpointMetadata>() is not null)
+            Context.GetEndpoint()?.Metadata.GetMetadata<GarajeMetria.Api.Diagnostics.HealthEndpointMetadata>() is not null ||
+            GarajeMetria.Api.Lpr.LprProblems.IsTokenRequest(Context) ||
+            Context.GetEndpoint()?.Metadata.GetMetadata<Lpr.LprTrafficMetadata>()?.Traffic == Lpr.LprTraffic.Event)
             return AuthenticateResult.NoResult();
         var header = Request.Headers.Authorization;
         if (header.Count == 0) return AuthenticateResult.NoResult();

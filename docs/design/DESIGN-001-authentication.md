@@ -938,6 +938,14 @@ No ejecutar cascadas hacia LocalUser, talleres, asignaciones, datos LPR o
 historial todavía dentro de plazo. La auditoría es inmutable durante su
 conservación y solo admite esta eliminación al llegar al umbral aprobado.
 
+RF-003 / T003-15 amplía este mismo ejecutor con auditoría administrativa de
+dispositivos y metadatos de access tokens OpenIddict elegibles. Mantiene
+calendario, lease, scope y lotes compartidos; la verificación final del reloj SQL
+revierte toda la transacción si venció el lease durante el lote. No añade otro
+pruning ni elimina eventos, clientes, secretos, dispositivos o talleres. El
+criterio conservador de tokens y su margen se detalla en DESIGN-003 / 8.
+CleanupResult mantiene sus campos anteriores y añade DeviceTokens (por defecto 0).
+
 Confirmar lotes cortos, registrar cantidades/resultados/correlación sin datos
 eliminados y conservar incidencias de limpieza para diagnóstico. Un fallo deja
 el lote sin confirmar y el trabajo pendiente puede retomarse. Si se pierde

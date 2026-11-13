@@ -10,7 +10,7 @@ public sealed class UserAdministrationOpenApi(UserAdministrationOptions options)
 {
     public Task TransformAsync(OpenApiOperation operation, OpenApiOperationTransformerContext context, CancellationToken cancellationToken)
     {
-        if (context.Description.RelativePath?.StartsWith("api/users", StringComparison.Ordinal) != true) return Task.CompletedTask;
+        if (operation.OperationId is not ("ListLocalUsers" or "GetDefaultWorkshop" or "SetDefaultWorkshop")) return Task.CompletedTask;
         var document = context.Document ?? throw new InvalidOperationException("OpenAPI document is required.");
         document.Components ??= new();
         document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
@@ -23,7 +23,7 @@ public sealed class UserAdministrationOpenApi(UserAdministrationOptions options)
         };
         operation.Security = [new OpenApiSecurityRequirement { [new OpenApiSecuritySchemeReference("Bearer", document)] = [] }];
         operation.Parameters ??= [];
-        if (context.Description.RelativePath == "api/users")
+        if (operation.OperationId == "ListLocalUsers")
         {
             operation.Parameters.Add(new OpenApiParameter
             {
@@ -40,7 +40,7 @@ public sealed class UserAdministrationOpenApi(UserAdministrationOptions options)
         }
         else
         {
-            if (context.Description.HttpMethod == "PUT")
+            if (operation.OperationId == "SetDefaultWorkshop")
             {
                 // The strict reader owns content negotiation and rejects duplicate/unknown fields.
                 operation.RequestBody = new OpenApiRequestBody
@@ -74,7 +74,7 @@ public sealed class UserAdministrationOpenApi(UserAdministrationOptions options)
                 });
                 operation.Description = $"JSON UTF-8 estricto con workshopId obligatorio (string o null) y reason (1–500 valores escalares Unicode, sin controles). Identificadores: 1–128 valores escalares sin espacios de borde. Máximo {options.MaxBodyBytes} bytes. Solo null para un objetivo Administrador verificado en AD. Un cambio efectivo cierra su sesión; un cambio sin efecto conserva versión y sesión.";
             }
-            if (operation.Responses is { } responses && responses.TryGetValue(context.Description.HttpMethod == "PUT" ? "204" : "200", out var value) && value is OpenApiResponse response)
+            if (operation.Responses is { } responses && responses.TryGetValue(operation.OperationId == "SetDefaultWorkshop" ? "204" : "200", out var value) && value is OpenApiResponse response)
             {
                 response.Headers ??= new Dictionary<string, IOpenApiHeader>();
                 response.Headers["ETag"] = new OpenApiHeader { Description = "Versión opaca de la asignación", Schema = new OpenApiSchema { Type = JsonSchemaType.String } };

@@ -88,7 +88,8 @@ public static class FileLogging
 
     private static bool IsUnsafeFrameworkEvent(LogEvent e) =>
         e.Properties.TryGetValue("SourceContext", out var value) && value is ScalarValue { Value: string category } &&
-        (category.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal) ||
+        (category.StartsWith("OpenIddict", StringComparison.Ordinal) || category.StartsWith("Microsoft.IdentityModel", StringComparison.Ordinal) ||
+         category.StartsWith("Microsoft.EntityFrameworkCore", StringComparison.Ordinal) ||
          category.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal));
 }
 

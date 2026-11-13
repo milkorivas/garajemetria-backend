@@ -129,12 +129,25 @@ y probar el origen aislado. Cambiar de motor puede requerir otro adaptador.
 Las herramientas EF deben indicar `--context AuthenticationDbContext` al operar
 las migraciones locales, porque existe también el contexto externo de lectura.
 
-## Extensión prevista por RF-003
+## Extensión RF-003 implementada en T003-12
 
 [DESIGN-003](DESIGN-003-lpr-event-ingestion.md) requiere que una publicación que
 desactive talleres renueve las versiones de autorización de sus dispositivos
-en la misma transacción de catálogo. Esto impedirá recuperar tokens antiguos al
+en la misma transacción de catálogo. Esto impide recuperar tokens antiguos al
 reactivar un taller, conservando registros, credenciales y asociaciones.
-Emisión e ingesta tomarán primero `workshops:catalog` y revalidarán estado local.
-Esta extensión todavía no está implementada; no modifica la continuidad con la
-última copia confirmada ni los efectos actuales sobre sesiones de Asesor.
+`SqlWorkshopCatalogStore` aplica la operación Domain
+`InvalidateAuthorizationForWorkshop` a todos los dispositivos de los talleres
+desactivados, también los inactivos o sin credenciales. Cambia ambas versiones
+y UpdatedAt sin alterar su actividad propia, secreto, asociación ni historial.
+Los dispositivos de talleres que siguen activos conservan sus versiones.
+
+Emisión e ingesta toman primero `workshops:catalog` y revalidan estado local.
+Las actualizaciones de talleres/dispositivos, cierres de sesiones de Asesor y
+marcador de publicación se confirman o revierten conjuntamente. Reactivar el
+taller conserva las versiones renovadas, requiere un token nuevo y no recupera
+sesiones cerradas. El Administrador mantiene su acceso.
+
+Las pruebas SQL de `LprIngestionTests` comprueban estados, credenciales y rollback;
+`LprHttpTests` verifica tokens entre dos hosts después de desactivar/reactivar.
+Se mantiene la última copia confirmada ante caída del origen; sin publicación
+inicial, las decisiones LPR que necesitan el catálogo devuelven ServiceUnavailable.

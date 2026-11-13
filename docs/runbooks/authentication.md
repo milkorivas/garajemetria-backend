@@ -1,5 +1,10 @@
 # RF-001 — Configuración, verificación y operación
 
+El host actualizado de RF-003 requiere además configuración privada Lpr/DeviceOAuth
+y certificados RSA de dispositivo, aunque las rutas LPR todavía estén pendientes.
+Completar la [configuración LPR](../configuration/lpr-test-preparation.md#configuración-obligatoria-desde-t003-08)
+antes de arrancarlo; el ejemplo de autenticación por sí solo ya no configura todo el host.
+
 ## 1. Alcance y estado
 
 La implementación incluye los cuatro endpoints de autenticación, sus casos de

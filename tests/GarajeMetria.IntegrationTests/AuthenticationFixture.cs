@@ -92,6 +92,8 @@ public sealed class AuthenticationFactory : WebApplicationFactory<Program>
     private readonly string temporaryDirectory = Path.Combine(Path.GetTempPath(), "GarajeMetria_AuthTests_" + Guid.NewGuid().ToString("N"));
     private readonly string? previousConfiguration;
     private readonly Action<IServiceCollection>? configureServices;
+    private readonly LprTestEnvironment lprEnvironment;
+    private readonly bool ownsLprEnvironment;
     public TestDirectory DirectoryAdapter { get; } = new();
     public TestClock Clock { get; } = new();
     public string CertificatePath => Path.Combine(temporaryDirectory, "signing.pfx");
@@ -100,9 +102,11 @@ public sealed class AuthenticationFactory : WebApplicationFactory<Program>
     public string KeyPath { get; }
 
     public AuthenticationFactory(SqlFixture database, AuthenticationFactory? shared = null, Action<IServiceCollection>? configureServices = null,
-        bool enableWorkshopSource = false)
+        bool enableWorkshopSource = false, LprTestEnvironment? lprEnvironment = null)
     {
         this.configureServices = configureServices;
+        this.lprEnvironment = lprEnvironment ?? shared?.lprEnvironment ?? new LprTestEnvironment();
+        ownsLprEnvironment = lprEnvironment is null && shared is null;
         KeyPath = shared?.KeyPath ?? Path.Combine(temporaryDirectory, "keys");
         CertificatePassword = shared?.CertificatePassword ?? CertificatePassword;
         RateNamespace = shared?.RateNamespace ?? RateNamespace;
@@ -114,6 +118,8 @@ public sealed class AuthenticationFactory : WebApplicationFactory<Program>
         else File.Copy(shared.CertificatePath, CertificatePath);
         var configuration = new
         {
+            DeviceOAuth = this.lprEnvironment.DeviceOAuth,
+            Lpr = this.lprEnvironment.Lpr,
             WorkshopCatalog = new { Enabled = enableWorkshopSource, Source = enableWorkshopSource ? "SqlServer" : "Disabled" },
             FileLogging = new { DirectoryPath = Path.Combine(temporaryDirectory, "logs") },
             ConnectionStrings = new { Authentication = database.ConnectionString, WorkshopSource = database.ConnectionString },
@@ -204,6 +210,7 @@ public sealed class AuthenticationFactory : WebApplicationFactory<Program>
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
+        if (disposing && ownsLprEnvironment) lprEnvironment.Dispose();
         Environment.SetEnvironmentVariable("GARAJEMETRIA_PRIVATE_CONFIG", previousConfiguration);
         var resolved = Path.GetFullPath(temporaryDirectory);
         if (resolved.StartsWith(Path.GetFullPath(Path.GetTempPath()), StringComparison.OrdinalIgnoreCase) &&

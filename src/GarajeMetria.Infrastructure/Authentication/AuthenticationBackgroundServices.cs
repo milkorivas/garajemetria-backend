@@ -68,8 +68,8 @@ internal sealed class AuthenticationCleanupService(IServiceScopeFactory scopes, 
                     using var scope = scopes.CreateScope();
                     result = await scope.ServiceProvider.GetRequiredService<ISender>()
                         .Send(new CleanupAuthenticationCommand(owner), stoppingToken);
-                    if (result.Acquired) logger.LogInformation("Authentication cleanup batch: refresh={Refresh}, sessions={Sessions}, audit={Audit}",
-                        result.RefreshRecords, result.Sessions, result.AuditEntries);
+                    if (result.Acquired) logger.LogInformation("Authentication cleanup batch: refresh={Refresh}, sessions={Sessions}, audit={Audit}, deviceTokens={DeviceTokens}",
+                        result.RefreshRecords, result.Sessions, result.AuditEntries, result.DeviceTokens);
                 } while (result.More && !stoppingToken.IsCancellationRequested);
             }
             catch (OperationCanceledException ex) when (stoppingToken.IsCancellationRequested)
