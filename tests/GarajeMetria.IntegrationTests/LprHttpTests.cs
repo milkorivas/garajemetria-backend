@@ -25,7 +25,7 @@ using OpenIddict.Server;
 
 namespace GarajeMetria.IntegrationTests;
 
-public sealed class LprHttpTests(SqlFixture database) : IClassFixture<SqlFixture>
+public sealed partial class LprHttpTests(SqlFixture database) : IClassFixture<SqlFixture>
 {
     [SqlFact]
     public async Task AdminRoutesPreserveEtagsSecretsPaginationAndDeviceLifecycle()
@@ -290,8 +290,11 @@ public sealed class LprHttpTests(SqlFixture database) : IClassFixture<SqlFixture
         Assert.Equal(4, list.GetProperty("parameters").GetArrayLength());
     }
 
-    [SqlFact]
-    public async Task RotationAfterGrantPreparationNeverUpgradesTheAlreadyVerifiedAuthorizationVersion()
+    [SqlTheory]
+    [InlineData("credentials/rotate", HttpStatusCode.OK)]
+    [InlineData("credentials/revoke", HttpStatusCode.NoContent)]
+    [InlineData("catalog", HttpStatusCode.OK)]
+    public async Task CredentialChangeAfterGrantPreparationNeverUpgradesTheAlreadyVerifiedAuthorizationVersion(string operation, HttpStatusCode expected)
     {
         var pause = new GrantPause();
         using var first = Factory(configure: services =>
@@ -309,15 +312,26 @@ public sealed class LprHttpTests(SqlFixture database) : IClassFixture<SqlFixture
         try
         {
             await pause.Prepared.Task.WaitAsync(TimeSpan.FromSeconds(15));
-            var rotation = await MutationAsync(admin, device.Id, "credentials/rotate", device.Tag);
-            Assert.Equal(HttpStatusCode.OK, rotation.StatusCode);
+            if (operation == "catalog")
+            {
+                using var scope = second.Services.CreateScope();
+                var store = scope.ServiceProvider.GetRequiredService<IWorkshopCatalogStore>();
+                await store.PublishAsync(await store.BeginObservationAsync(default), [], default);
+                await store.PublishAsync(await store.BeginObservationAsync(default), [new(setup.Site, "Restored")], default);
+            }
+            else
+            {
+                var mutation = await MutationAsync(admin, device.Id, operation, device.Tag);
+                Assert.Equal(expected, mutation.StatusCode);
+            }
         }
         finally { pause.Release.TrySetResult(); }
         var response = await issuance;
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var stale = (await ReadAsync(response)).GetProperty("access_token").GetString()!;
         Assert.Equal(HttpStatusCode.Unauthorized, (await ProbeAsync(second, stale)).StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await TokenAsync(client, device.ClientId, device.Secret)).StatusCode);
+        Assert.Equal(operation == "catalog" ? HttpStatusCode.OK : HttpStatusCode.Unauthorized,
+            (await TokenAsync(client, device.ClientId, device.Secret)).StatusCode);
     }
 
     [SqlFact]

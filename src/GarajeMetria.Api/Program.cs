@@ -58,10 +58,11 @@ try
         .PersistKeysToFileSystem(new DirectoryInfo(http.DataProtectionKeyPath)).ProtectKeysWithCertificate(protectionCertificate);
     builder.Services.AddAuthentication("Bearer").AddScheme<AuthenticationSchemeOptions, SessionBearerHandler>("Bearer", _ => { });
     builder.Services.AddDeviceOAuth();
+    builder.Services.AddSingleton<LprTelemetry>();
     builder.Services.AddAuthorizationBuilder().SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
     builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(http.AllowedOrigins)
         .AllowCredentials().WithMethods("GET", "POST", "PUT", "OPTIONS")
-        .WithHeaders("Content-Type", "Authorization", "If-Match", AuthenticationEndpoints.CsrfHeader).WithExposedHeaders("ETag")));
+        .WithHeaders("Content-Type", "Authorization", "If-Match", AuthenticationEndpoints.CsrfHeader).WithExposedHeaders("ETag", "Location", "Retry-After")));
     builder.Services.Configure<ForwardedHeadersOptions>(o =>
     {
         o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -83,6 +84,7 @@ try
     app.UseExceptionHandler(new ExceptionHandlerOptions { SuppressDiagnosticsCallback = _ => true });
     app.UseMiddleware<RequestCancellationLoggingMiddleware>();
     if (http.TrustedProxies.Length > 0) app.UseForwardedHeaders();
+    app.UseMiddleware<LprTelemetryMiddleware>();
     app.UseMiddleware<DeviceTokenHttpsMiddleware>();
     app.UseHttpsRedirection();
     if (http.EnableApiDocumentation)

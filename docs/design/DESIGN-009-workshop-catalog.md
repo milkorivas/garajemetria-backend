@@ -149,5 +149,13 @@ sesiones cerradas. El Administrador mantiene su acceso.
 
 Las pruebas SQL de `LprIngestionTests` comprueban estados, credenciales y rollback;
 `LprHttpTests` verifica tokens entre dos hosts después de desactivar/reactivar.
+T003-17 añade barreras deterministas para ambos órdenes de catálogo/ingesta y
+para cambios de catálogo durante la preparación del grant; verifica rollback,
+rechazo del token anterior y ausencia de resurrección al reactivar. El cierre
+de RF-003 y sus resultados están en
+[TASKS-003 / 11](../tasks/TASKS-003-lpr-event-ingestion.md#11-cierre-de-t003-20);
+el [runbook LPR](../runbooks/lpr-event-ingestion.md) documenta recuperación
+y credenciales. Esta evidencia no acredita la fuente corporativa definitiva
+ni cierra las verificaciones externas propias de RF-009.
 Se mantiene la última copia confirmada ante caída del origen; sin publicación
 inicial, las decisiones LPR que necesitan el catálogo devuelven ServiceUnavailable.

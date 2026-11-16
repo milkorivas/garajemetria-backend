@@ -1,4 +1,7 @@
 {
+  "Http": {
+    "EnableApiDocumentation": false
+  },
   "Lpr": {
     "RateLimitNamespace": "garajemetria-lpr-v1",
     "MaxEventAgeMinutes": 30,

@@ -87,7 +87,7 @@ public sealed record OAuthTokenResponse([property: JsonPropertyName("access_toke
 {
     public override string ToString() => nameof(OAuthTokenResponse);
 }
-public sealed record OAuthErrorResponse(string Error);
+public sealed record OAuthErrorResponse(string Error, [property: JsonPropertyName("error_description")] string? ErrorDescription = null);
 internal sealed class OAuthFailureResult(int status, string error) : IResult
 {
     public Task ExecuteAsync(HttpContext context) => LprProblems.OAuthErrorAsync(context, status, error);

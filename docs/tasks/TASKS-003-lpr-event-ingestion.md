@@ -5,7 +5,7 @@
 | Requerimiento | [RF-003](../requirements/RF-003-lpr-event-ingestion.md) |
 | Diseño | [DESIGN-003](../design/DESIGN-003-lpr-event-ingestion.md) |
 | Coordinación | [TASKS-001](TASKS-001-authentication.md), [TASKS-002](TASKS-002-roles-and-workshop-access.md) y [TASKS-009](TASKS-009-workshop-catalog.md) |
-| Estado | T003-01 a T003-15 completadas; observabilidad, verificación transversal y runbook final pendientes |
+| Estado | T003-01 a T003-20 completadas; cierre del backend con evidencia automatizada y limitaciones externas explícitas |
 
 Los RN y CA pertenecen a RF-003; los CP se definen en DESIGN-003 / 9.
 Una casilla completa exige implementación y evidencia de su verificación,
@@ -245,7 +245,7 @@ borrados. Las migraciones previstas se verifican únicamente en bases aisladas.
   lease y cancelación; auditoría inmutable durante retención y sin cascadas.
   Trazabilidad: CA-005, CA-014, CA-015, CA-016; CP-005, CP-012, CP-016.
 
-- [ ] **T003-16 — Completar OpenAPI, observabilidad y configuración documentada.**
+- [x] **T003-16 — Completar OpenAPI, observabilidad y configuración documentada.**
   Dependencias: T003-10, T003-11, T003-12, T003-14, T003-15.
   Describir DTOs, esquemas diferenciados, formulario OAuth, respuestas, cuotas
   y precondiciones. Documentar las rutas anónimas de metadatos que efectivamente
@@ -263,7 +263,7 @@ borrados. Las migraciones previstas se verifican únicamente en bases aisladas.
 
 ## 6. Verificación transversal y entrega
 
-- [ ] **T003-17 — Verificar carreras, aislamiento y regresiones compartidas.**
+- [x] **T003-17 — Verificar carreras, aislamiento y regresiones compartidas.**
   Dependencias: T003-10, T003-11, T003-12, T003-14, T003-15, T003-16.
   Completar la matriz de DESIGN-003 / 9 con WebApplicationFactory y SQL Server
   aislado. Coordinar de forma determinista dos instancias para ingesta duplicada,
@@ -276,7 +276,7 @@ borrados. Las migraciones previstas se verifican únicamente en bases aisladas.
   o EF InMemory ni dar por probada concurrencia con dobles de repositorio.
   Trazabilidad: CA-001 a CA-018; CP-001 a CP-018.
 
-- [ ] **T003-18 — Crear runbook y comprobar el flujo HTTP sintético.**
+- [x] **T003-18 — Crear runbook y comprobar el flujo HTTP sintético.**
   Dependencias: T003-16, T003-17.
   Crear `docs/runbooks/lpr-event-ingestion.md` y colección Postman/Bruno o
   equivalente sin secretos. Documentar certificados/configuración privada,
@@ -290,7 +290,7 @@ borrados. Las migraciones previstas se verifican únicamente en bases aisladas.
   Trazabilidad: CA-001, CA-004, CA-007, CA-008, CA-011, CA-012, CA-014,
   CA-015; CP-001, CP-003, CP-007, CP-009, CP-011, CP-012, CP-014.
 
-- [ ] **T003-19 — Ejecutar checks proporcionados y registrar evidencia.**
+- [x] **T003-19 — Ejecutar checks proporcionados y registrar evidencia.**
   Dependencias: T003-17, T003-18.
   Completar restore/build Release/format necesarios para el cambio y pruebas
   focalizadas, conservando resultados y prerequisitos. Antes de cualquier suite
@@ -305,7 +305,7 @@ borrados. Las migraciones previstas se verifican únicamente en bases aisladas.
   inventar resultados. No iniciar un segundo intento completo para cerrar la casilla.
   Trazabilidad: CA-001 a CA-018; CP-001 a CP-018.
 
-- [ ] **T003-20 — Reconciliar documentación y cerrar el tramo con sus límites.**
+- [x] **T003-20 — Reconciliar documentación y cerrar el tramo con sus límites.**
   Dependencias: T003-18, T003-19.
   Actualizar RF-003, DESIGN-003, catálogo, arquitectura, DESIGN-009 y este plan
   con los contratos/versiones realmente entregados y enlaces al runbook.
@@ -600,3 +600,181 @@ Sin migraciones ni configuración privada nuevas. No se repitió la suite comple
 se conserva el intento diario previo interrumpido sin resultados. T003-16 a
 T003-20 siguen abiertas; no se da por completa la matriz transversal ni la
 verificación final de RF-003.
+
+**Implementación de T003-16/17, 16 de noviembre de 2026:**
+
+- OpenAPI completa formatos, valores por defecto, precondiciones y cabeceras
+  Cache-Control/Pragma/WWW-Authenticate/Retry-After/Location/ETag, manteniendo
+  Basic, OAuth de dispositivo y Bearer de Administrador separados. El error
+  OAuth documenta error_description opcional. No se publican metadatos OAuth
+  anónimos; Swagger/OpenAPI siguen opt-in, también en el ejemplo de configuración.
+- CORS conserva orígenes/métodos explícitos y expone Location y Retry-After junto
+  con ETag. Pruebas verifican preflight administrativo y origen no autorizado.
+- Meter GarajeMetria.Lpr: contador de intentos y duración, con etiquetas acotadas
+  traffic/outcome/status_code/plate_status. Incluye rechazos anteriores al handler
+  y no etiqueta identificadores, matrícula, IP o secreto. Log de finalización
+  seguro y correlacionado; se comprueba la ausencia de payloads/credenciales.
+- El diagnóstico SQL verifica los siete almacenes LPR/OAuth con proyecciones de
+  cero filas; no basta conectar. La prueba renombra/restaura un store únicamente
+  en la base SQL temporal y comprueba error/recuperación sin detalles internos.
+- Barreras SQL deterministas entre dos hosts: duplicado HTTP bloqueado sobre
+  catálogo, expiración durante espera y ambos órdenes de publicación/ingesta.
+  La emisión pausada conserva versión previa frente a rotación, revocación o
+  desactivación/reactivación de taller. Commit de rotación sin acuse: 500 seguro,
+  GET/ETag y nueva rotación recuperan acceso sin recuperar el secreto perdido.
+- Nuevas comprobaciones focalizadas: 12 casos distintos correctos, sin fallos ni
+  omitidos, en `artifacts/agent-checks/2026-11-16-rf003-16-17-*`. Restore con
+  NuGet Audit de todo el grafo sin avisos informados; no se cambian dependencias.
+  La suite completa diaria se registra en `artifacts/agent-checks/full-suite.json`.
+- Suite completa del 16 de noviembre: 579 correctas, cero fallidas y una omitida
+  (LDAPS real no habilitado): Domain 179, Application 111, Architecture 14 e
+  Integration 275 correctas/una omitida. Se ejecutó una sola vez, con cuatro TRX
+  en `artifacts/agent-checks/2026-11-16-full`; no se presenta como verificación AD real.
+- Build Release sin errores ni advertencias, formato y diff verificados.
+  Evidencia consolidada local: `artifacts/agent-checks/2026-11-16-rf003-16-17-result.json`.
+
+Sin migraciones, cambios a configuración privada ni despliegues. T003-18 a
+T003-20 siguen pendientes, además de las verificaciones externas AD/cámara/backup.
+
+**Implementación de T003-18/19, 16 de noviembre de 2026:**
+
+- [Runbook operativo](../runbooks/lpr-event-ingestion.md) con preparación privada,
+  certificados/TLS, migración, custodia y recuperación ante pérdida de secreto,
+  reactivación, errores, cola externa y límites temporales de recuperación.
+- [Colección Postman](../http/RF-003.postman_collection.json) sin secretos ni
+  respuestas guardadas. Usa Vault y alias locales; las variables exportables
+  contienen solo configuración pública e identificadores. Incluye 22 peticiones
+  desde bootstrap/login HTTP hasta desactivación final, con aserciones de estado
+  y recibo. Solo ejecución manual/Runner compatible con Vault; no Newman/CLI.
+- Dos pruebas nuevas correctas, sin fallos ni omitidas. Las 22 plantillas HTTP
+  se ejecutaron con WebApplicationFactory, SQL Server real temporal, migraciones
+  y directorio sintético: dos eventos, seis auditorías, recibo original preservado
+  y dispositivo final inactivo/sin credenciales. El harness no ejecuta scripts
+  de Postman ni Vault; esos scripts pasan comprobación sintáctica con Node.
+- Build Release sin errores ni advertencias; formato y diff verificados.
+  Se reutiliza el restore auditado y la suite completa diaria anterior (579
+  correctas, cero fallidas, una omitida LDAPS). No se repite la suite completa.
+- Evidencia segura local: `artifacts/agent-checks/rf003-runbook-flow.json`, TRX
+  en `artifacts/agent-checks/2026-11-16-rf003-18-19` y consolidación en
+  `artifacts/agent-checks/2026-11-16-rf003-18-19-result.json`.
+
+T003-20 permanece abierta. La ejecución nativa en Postman, el emisor físico,
+el AD corporativo y el backup/restore físico no se presentan como verificados.
+No hay cambios de dependencias, migraciones nuevas ni despliegues en T003-18/19.
+
+## 10. Trazabilidad automatizada de T003-17
+
+La matriz identifica pruebas existentes y nuevas, ejecutadas con datos sintéticos.
+Dos hosts WebApplicationFactory tienen contenedores/scopes separados y comparten
+SQL Server real; las señales SQL evitan depender de sleeps para forzar carreras.
+
+| CP | Evidencia automatizada representativa |
+| --- | --- |
+| CP-001 | LprHttpTests: ClientCredentialsUsesProtectedTokensSeparateFromUsersWithoutRefreshCookiesOrSessionReplacement; LprConfigurationTests. |
+| CP-002 | LprHttpTests: AdministrativeLimitsQueriesAndPermissionsAreExplicit, EventBoundaryEnforcesDeviceIdentitySizesMediaAndDuplicateQuotas; LprContractsTests. |
+| CP-003 | LprHttpTests: RotationRevocationAndDeactivationInvalidateTokensInAnotherHostImmediately, CredentialChangeAfterGrantPreparationNeverUpgradesTheAlreadyVerifiedAuthorizationVersion. |
+| CP-004 | LprHttpTests: CatalogPublicationAndIngestionRespectTheCommitOrderAndNeverReviveOldTokens (ambos órdenes), CatalogReactivationRequiresANewTokenInAnotherHostButPreservesTheDeviceSecret, carrera catálogo/emisión. |
+| CP-005 | LprDeviceTests, LprPersistenceTests y AdminRoutesPreserveEtagsSecretsPaginationAndDeviceLifecycle; FKs/historial y ausencia de DELETE/traslado. |
+| CP-006 | LprEventTests; LprIngestionTests; EventEndpointPersistsInvalidLowConfidenceReadingsAndConfirmsOldEquivalentRetries. |
+| CP-007 | OverlappingHttpDeliveriesWaitOnTheRealCatalogLockAndProduceOneEvent; IngestionPreservesInvalidAndLowConfidenceReadingsAndConfirmsOldSemanticRetries; ForeignUuidConflictsWithoutLeakingTheReceiptAndRevokedDevicesCannotConfirmDuplicates. |
+| CP-008 | LprEventTests: ThirtyMinuteWindowIncludesExactBoundariesAndRejectsOneTickBeyond y WindowTolerancesAreIndependentAndDoNotOverflowAtDateTimeLimits; ReceiveLprEventTests; EventNumbersAreConvertedExactlyAndOffsetsAndOlderUuidVersionsAreAccepted. |
+| CP-009 | LprIngestionTests: FailedOrUnacknowledgedCommitNeverReturnsSuccessAndAnExplicitRetryReconciles; EventErrorsAreSafeAndAnUnacknowledgedCommitCanBeReconciledOverHttp. |
+| CP-010 | SpanishPlateClassifierTests: familias, prefijos, normalización, ambigüedad, originales y Unicode. Se mantienen las limitaciones históricas documentadas. |
+| CP-011 | EventJsonRejectsMalformedOrInexactValuesBeforePersistence; EventBoundaryEnforcesDeviceIdentitySizesMediaAndDuplicateQuotas; LprEventTests. |
+| CP-012 | UnacknowledgedRotationIsRecoveredThroughFreshEtagAndAnotherRotationWithoutRecoveringTheLostSecret; MetricsAndLogsDescribeOutcomesWithoutIdentityPayloadOrSecretLabels; pruebas de DTOs/logs en LprContractsTests. |
+| CP-013 | PreconditionsRejectMissingWeakWildcardOrMultipleEtags; LprAdministrationAndQuotaTests: FailedRotationRestoresSecretDeviceVersionAndAudit, NoOpStaleVersionAndMissingCatalogDoNotGenerateSecretsOrExtraAudits. |
+| CP-014 | LprHttpTests: Basic/form, grants/scopes, medios/tamaños, cuotas y errores seguros; OpenApiAndCorsDescribeEveryLprContractWithoutPublishingAnonymousOAuthMetadata. |
+| CP-015 | TokenExpiringWhileWaitingForTheCatalogLockCannotPersistAnEvent; ClientQuotaCountsRejectedSecretsAndSqlFailureNeverIssuesOrAcceptsAToken; LprConfigurationTests; SqlHealthRejectsAMissingOAuthStoreWithoutExposingSchemaOrConnectionDetails. |
+| CP-016 | LprRetentionTests: elegibilidad/margen/frontera, propietarios concurrentes, lease vencido, cancelación y ausencia de cascadas; regresiones SqlStoreTests y UserAdministrationTests. |
+| CP-017 | LprAdministrationAndQuotaTests: QuotasAreSharedByTwoHostsAndIsolatedFromUserAuthenticationPolicies, ExactQuotaWindowMismatchAndUnavailableSqlFailClosed, SharedCleanupDoesNotDeletePermitsInsideTheLongerLprWindow; EventBoundaryEnforcesDeviceIdentitySizesMediaAndDuplicateQuotas. |
+| CP-018 | ArchitectureTests; LprMigrationTests/LprPersistenceTests y regresiones de asignación/catálogo, SQL Server aislado. |
+
+
+## 11. Cierre de T003-20
+
+Cierre del backend RF-003: 16 de noviembre de 2026. T003-01 a T003-20
+completadas para este alcance; no quedan tareas de implementación de este plan
+abiertas. Se reconciliaron RF-003, DESIGN-003, catálogo, arquitectura y la extensión
+de DESIGN-009 con el código y los resultados locales. El
+[runbook](../runbooks/lpr-event-ingestion.md) y la
+[colección HTTP](../http/RF-003.postman_collection.json) constituyen la guía de operación.
+
+### Contratos y versiones entregados
+
+| Elemento | Entrega verificada |
+| --- | --- |
+| Plataforma | SDK fijado 10.0.401 con latestPatch, C# 14, .NET 10, EF Core/SQL Server 10.0.12 y OpenIddict 7.7.2. Único motor verificado: SQL Server. |
+| Administración | Ocho rutas bajo `/api/lpr/devices`, Bearer de Administrador, ETag/If-Match en mutaciones, asociación inmutable y sin DELETE. Secreto solo al generar; auditoría atómica. |
+| Emisión | POST `/connect/token`, HTTPS, Client Credentials, Basic o formulario, scope `lpr.events.write`, token firmado/cifrado sin refresh ni sesión de usuario; vigencia inicial 15 minutos. |
+| Autorización | Estado de dispositivo, taller, entrada de token y versión SQL en cada uso; invalidación inmediata y coordinación transaccional con catálogo RF-009. |
+| Ingesta | POST `/api/lpr/events`, un JSON snake_case sin imagen, máximo 8 KiB y profundidad 4; confidence exacta hasta ocho decimales. 201 nuevo, 200 duplicado con recibo original, 409 conflicto. |
+| Identidad y tiempo | UUID global respaldado por PK; comparación semántica/ordinal y UTC. Ventanas inclusivas iniciales de ±30 minutos solo para eventos nuevos; reintentos siguen sujetos a autorización vigente. |
+| Matrículas | Clasificador sintáctico versionado `es-v1`; familias/prefijos y compatibilidad histórica de DESIGN-003 / 5. Conserva original, inválidas y baja confianza; no acredita existencia ni exhaustividad administrativa. |
+| Persistencia | Migración aditiva `20261113115955_LprPersistence`, FKs restrictivas, FK compuesta dispositivo/taller, transacciones y locks ordenados. Commit incierto sin falso éxito ni repetición ciega. |
+| Retención y operación | Eventos/dispositivos sin borrado; auditoría y metadatos elegibles de tokens con supervisor/lease compartido. Logs seguros, métricas acotadas, diagnóstico SQL y OpenAPI opt-in. |
+
+### Reconciliación CA → CP → resultado
+
+Fuente F: cuatro TRX reales en `artifacts/agent-checks/2026-11-16-full`,
+con los nombres de pruebas de la sección 10. Todos los selectores de la matriz
+se contrastaron con resultados Passed; ningún CP depende de la prueba LDAPS
+omitida. La consolidación local `2026-11-16-rf003-20-result.json` conserva por
+CP los selectores, resultados y rutas TRX. Cada fila es una selección trazable,
+no una medida de cobertura de código; sus recuentos se solapan y no se suman.
+
+| CP | CA cubiertos | Casos contrastados en F | Estado |
+| --- | --- | --- | --- |
+| CP-001 | CA-001, CA-003, CA-013 | 22 | Verificado en el alcance automatizado |
+| CP-002 | CA-001, CA-002 | 3 | Verificado en el alcance automatizado |
+| CP-003 | CA-004, CA-014 | 4 | Verificado en el alcance automatizado |
+| CP-004 | CA-004, CA-015 | 4 | Verificado en el alcance automatizado |
+| CP-005 | CA-005, CA-015 | 3 | Verificado en el alcance automatizado |
+| CP-006 | CA-006, CA-010 | 2 | Verificado en el alcance automatizado |
+| CP-007 | CA-007, CA-008, CA-018 | 3 | Verificado en el alcance automatizado |
+| CP-008 | CA-009 | 7 | Verificado en el alcance automatizado |
+| CP-009 | CA-011 | 3 | Verificado en el alcance automatizado |
+| CP-010 | CA-012 | 116 | Verificado en el alcance automatizado |
+| CP-011 | CA-012, CA-017 | 22 | Verificado en el alcance automatizado |
+| CP-012 | CA-014, CA-015, CA-016 | 2 | Verificado en el alcance automatizado |
+| CP-013 | CA-016 | 7 | Verificado en el alcance automatizado |
+| CP-014 | CA-001, CA-013, CA-017 | 7 | Verificado en el alcance automatizado |
+| CP-015 | CA-004, CA-011 | 24 | Verificado en el alcance automatizado |
+| CP-016 | CA-016 | 5 | Verificado en el alcance automatizado |
+| CP-017 | CA-010, CA-017 | 4 | Verificado en el alcance automatizado |
+| CP-018 | CA-002, CA-005 | 29 | Verificado en el alcance automatizado |
+
+CP-010 se apoya en 116 casos de SpanishPlateClassifierTests: familias, positivos/
+negativos por prefijo provincial/estatal, históricos de tres letras, ambigüedad,
+Unicode y normalización. Verifica el catálogo `es-v1` definido; no consulta DGT,
+no distingue países con sintaxis coincidente ni prueba todas las asignaciones
+históricas posibles. Las lecturas no reconocidas permanecen conservadas invalid.
+
+Como comprobación operativa adicional, los dos casos de LprRunbookTests pasaron
+en `artifacts/agent-checks/2026-11-16-rf003-18-19`: 22 plantillas HTTP, dos eventos,
+seis auditorías y dispositivo final inactivo/sin credenciales. Sus scripts solo
+se comprobaron sintácticamente; el harness HTTP no ejecuta Postman ni Vault.
+
+### Verificación reutilizada y límites abiertos fuera del tramo
+
+- Última suite completa: 16 de noviembre, inicio UTC 08:29:21 y fin 08:34:57;
+  579 correctas, cero fallidas y una omitida (LDAPS externo no habilitado).
+  El registro `artifacts/agent-checks/full-suite.json` conserva comando y cuatro
+  TRX. Las dos pruebas nuevas de runbook se ejecutaron después por separado;
+  no se presentan como parte de esa suite ni se inventa una segunda ejecución.
+- T003-19 acreditó build Release con cero errores/advertencias, formato y diff
+  correctos, comprobación sintáctica de scripts y restore auditado reutilizado
+  de T003-16/17. Evidencia: `2026-11-16-rf003-18-19-result.json`.
+- T003-20 solo modifica documentación. Se revisan enlaces locales, consistencia
+  de CA/CP, casillas y diff; no procede repetir restore/build/format o tests de
+  aplicación. La suite completa se reutiliza conforme a la frecuencia diaria
+  de AGENTS.md, no queda pendiente por fallo ni se requiere otra para este cierre.
+- Siguen sin verificar Postman/Vault nativo, cámara/proveedor real, AD corporativo
+  y backup/restore físico. No se ha realizado despliegue ni validación de capacidad
+  de producción o de otro motor. Estas limitaciones no se marcan como superadas.
+- Fuera de RF-003: panel RF-008, imágenes RF-007, historial/consulta RF-005 e
+  interpretación de entradas/salidas/estancias RF-004. La cola y retención del
+  emisor son externas; RF-003 no las implementa.
+
+Este cierre no aplica migraciones, cambia configuración privada, publica ni
+despliega. La evidencia ejecutable queda local e ignorada por Git; para otra
+máquina se deben preparar los prerrequisitos y reproducir las pruebas.

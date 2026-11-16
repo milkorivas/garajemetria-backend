@@ -19,7 +19,14 @@ OpenAPI/Swagger UI, además de sus pruebas y comprobaciones de arquitectura.
 La verificación contra AD de pruebas y la restauración física aislada siguen
 pendientes. RF-003 incorpora administración HTTP y OAuth de dispositivos;
 también implementa invalidación por catálogo, recepción HTTP idempotente de
-eventos y retención coordinada de auditoría y metadatos de tokens.
+eventos y retención coordinada de auditoría y metadatos de tokens. T003-16/17
+añaden métricas y logs seguros, diagnóstico SQL de los almacenes LPR/OAuth,
+OpenAPI y pruebas transversales. T003-18 a T003-20 completan runbook, colección
+HTTP y cierre trazable de los 18 CA/18 CP: véase el
+[runbook LPR](runbooks/lpr-event-ingestion.md) y
+[TASKS-003 / 11](tasks/TASKS-003-lpr-event-ingestion.md#11-cierre-de-t003-20).
+Las plantillas HTTP se verificaron con SQL aislado; Postman/Vault nativo y
+hardware real no se presentan como ejecutados.
 El estado y la preparación operativa se detallan en el
 [runbook de autenticación](runbooks/authentication.md).
 
@@ -161,7 +168,8 @@ La revocación, rotación y desactivación invalidan inmediatamente los tokens
 previos entre instancias; no basta validar firma y caducidad. La asociación
 dispositivo/taller es inmutable y los registros no se borran físicamente.
 El [diseño DESIGN-003](design/DESIGN-003-lpr-event-ingestion.md) selecciona
-OpenIddict para servidor y validación local, con stores EF en Infrastructure
+OpenIddict 7.7.2 para servidor y validación local, con stores EF Core 10.0.12
+en Infrastructure
 y protocolo HTTP en Api. Añade una versión persistida por dispositivo para
 invalidación inmediata, coordinada con publicación de catálogo; las capas
 internas no dependen de OpenIddict. T003-01 a T003-15 preparan dependencias y

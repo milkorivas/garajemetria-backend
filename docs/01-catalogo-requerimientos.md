@@ -120,9 +120,14 @@ esa integración; no son decisiones pendientes del requisito de autenticación.
 
 RF-003 define la ingesta JSON de un evento por petición y la administración de
 dispositivos con OAuth Client Credentials emitido por GarajeMetría. DESIGN-003
-concreta sus contratos y persistencia; TASKS-003 planifica su implementación
-y verificación, ambas pendientes.
-La definición no acredita ejecución.
+concreta sus contratos y persistencia; [TASKS-003](tasks/TASKS-003-lpr-event-ingestion.md#11-cierre-de-t003-20)
+registra T003-01 a T003-20 completadas el 16 de noviembre de 2026, con
+trazabilidad de 18 CA/18 CP y resultados automatizados. El estado «Definido»
+de la tabla sigue describiendo la especificación. El
+[runbook LPR](runbooks/lpr-event-ingestion.md) y la
+[colección Postman](http/RF-003.postman_collection.json) permiten reproducir el
+flujo sintético. No se acredita ejecución nativa de Postman/Vault, cámara real,
+AD corporativo ni backup/restore físico.
 
 ## 4. Requerimientos no funcionales
 

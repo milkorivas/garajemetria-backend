@@ -1,4 +1,8 @@
-# Preparación, recepción HTTP y retención de RF-003 — T003-01 a T003-15
+# Preparación y operación del backend RF-003 — T003-01 a T003-19
+
+El [runbook de ingesta](../runbooks/lpr-event-ingestion.md) incluye el flujo
+sintético completo y la colección Postman sin secretos, con recuperación de
+credenciales, reenvíos y límites de la evidencia automatizada.
 
 ## Dependencias y alcance
 
@@ -345,5 +349,65 @@ el lote o cancelación revierte toda la transacción. No existe endpoint de limp
 Las pruebas focalizadas cubren HTTP con OAuth/SQL reales, precisión, límites,
 errores seguros y commit incierto reconciliable, más retención con frontera de
 un tick, propietarios concurrentes y rollback. No hay migración ni opciones
-privadas nuevas en T003-14/15. T003-16 completará observabilidad y revisión OpenAPI;
-las pruebas transversales y el runbook final siguen en sus tareas posteriores.
+privadas nuevas en T003-14/15. La observabilidad y verificación transversal de
+T003-16/17 se describen debajo; el runbook final sigue en T003-18.
+
+## Observabilidad y contrato operativo desde T003-16
+
+El ejemplo `lpr.example.json` incluye `Http:EnableApiDocumentation=false`.
+Integrar esa propiedad en la sección Http existente, conservando orígenes,
+proxies, certificados y Data Protection; no sustituir toda la sección por el
+fragmento del ejemplo. Habilitar explícitamente OpenAPI/Swagger solo donde
+corresponda. Deshabilitar documentación mantiene OAuth e ingesta operativos.
+OpenIddict no publica discovery, JWKS, introspección, revocación o registro
+dinámico anónimos. `/connect/token` no requiere sesión de usuario, pero sí
+credenciales Basic del dispositivo.
+
+OpenAPI diferencia Basic/form para emisión, OAuth `lpr.events.write` para
+eventos y Bearer de Administrador para dispositivos. Describe Cache-Control,
+Pragma, WWW-Authenticate, Retry-After, Location de alta y ETag/If-Match. CORS
+mantiene orígenes HTTPS explícitos y métodos GET/POST/PUT/OPTIONS; permite
+If-Match y expone ETag, Location y Retry-After, sin orígenes comodín.
+
+El meter `GarajeMetria.Lpr` emite instrumentación estándar .NET:
+
+| Instrumento | Unidad | Uso |
+| --- | --- | --- |
+| `garajemetria.lpr.requests` | `{request}` | Intentos HTTP y resultados, incluidos rechazos anteriores al handler. |
+| `garajemetria.lpr.request.duration` | `s` | Duración completa, incluidas cuotas, autenticación y persistencia. |
+
+Etiquetas acotadas: traffic (`token`, `event`, `administration`), outcome
+(`success`, `accepted`, `duplicate`, `conflict`, `outside_window`, `invalid`,
+`unauthorized`, `forbidden`, `rate_limited`, `unavailable`, `failed`, `cancelled`),
+status_code y plate_status (`valid`, `invalid`, `none`). No se etiquetan IDs,
+talleres, clientId, IP, matrículas o tokens. `accepted`/`duplicate` proceden del
+recibo; los demás valores describen resultados HTTP. Los preflight y rechazos
+también cuentan. El colector del entorno puede suscribirse al meter; no se añade
+un endpoint público de métricas.
+
+El log `LPR request completed` registra resultado y latencia con la correlación
+existente, sin cuerpos, credenciales o matrículas. Se mantiene el filtro absoluto
+de categorías OpenIddict, IdentityModel, EF y ASP.NET Core potencialmente sensibles,
+incluso si aumenta su verbosidad.
+
+El diagnóstico SQL comprueba acceso a tablas y columnas requeridas de los siete
+almacenes LPR/OAuth mediante proyecciones de cero filas, dentro del timeout de
+cinco segundos. Una conexión válida con una migración o permiso requerido ausente
+ya no aparece como SQL correcto. Health solo muestra estado; su log seguro omite
+SQL, esquema y cadena de conexión.
+
+## Carreras y trazabilidad T003-17
+
+`LprConcurrencyTests.cs` comparte la clase parcial `LprHttpTests` y sus dos
+hosts WebApplicationFactory independientes. Las barreras de guardado y señales
+de entrada a `sp_getapplock` explicitan qué transacción espera: duplicado HTTP,
+expiración durante espera y ambos órdenes entre catálogo e ingesta. La emisión
+se pausa tras preparar el grant para rotar, revocar o desactivar/reactivar el
+taller antes de firmar; no se actualiza el grant con una versión nueva.
+Una rotación con commit sin acuse se recupera con GET/ETag y otra rotación,
+sin recuperar el secreto perdido.
+
+La trazabilidad CP-001 a CP-018 y las regresiones se registran en TASKS-003.
+La suite completa respeta la frecuencia Atlantic/Canary de AGENTS.md y registra
+su resultado en artifacts/agent-checks/full-suite.json. Esto no acredita hardware,
+AD corporativo, restauración física ni despliegue.

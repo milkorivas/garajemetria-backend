@@ -2,7 +2,7 @@
 
 | ID | Requerimiento | Prioridad | Estado |
 | --- | --- | --- | --- |
-| RF-003 | Recepción de eventos LPR | Por definir | Recepción HTTP idempotente y retención implementadas; observabilidad y verificación transversal pendientes |
+| RF-003 | Recepción de eventos LPR | Por definir | Definido; backend y verificación automatizada entregados, T003-01 a T003-20 completadas |
 
 ## 1. Objetivo y alcance
 
@@ -13,7 +13,7 @@ las primeras comprobaciones manuales pueden realizarse con Postman, Bruno o simi
 
 RF-003 incluye la administración de identidades de dispositivos y la emisión
 OAuth Client Credentials. El panel consumidor pertenece a RF-008; este
-repositorio implementará sus operaciones de backend, no la interfaz gráfica.
+repositorio implementa sus operaciones de backend, no la interfaz gráfica.
 Las imágenes se tratarán en RF-007 y no forman parte de esta entrega.
 La interpretación de entradas, salidas y estancias corresponde a RF-004.
 
@@ -129,7 +129,7 @@ matrícula corregida ni descartar el evento por baja confianza.
 
 La aceptación de formatos inválidos no exime de validar el contrato: rechazar
 JSON mal formado, campos obligatorios ausentes, tipos incorrectos, texto vacío
-o límites de tamaño excedidos. El diseño fijará esos límites. La utilización
+o límites de tamaño excedidos. DESIGN-003 fija esos límites. La utilización
 de lecturas inválidas para calcular estancias se definirá en RF-004.
 
 ### 4.2. Comparación de reintentos
@@ -143,7 +143,7 @@ Cambiar el texto original de matrícula para un mismo UUID es conflicto, incluso
 si produce la misma matrícula normalizada. No recalcular ni sobrescribir el
 evento original al confirmar un reintento.
 
-## 5. Seguridad y contratos pendientes de diseño
+## 5. Seguridad y contratos técnicos
 
 Usar HTTPS y configuración privada para secretos. No registrar credenciales,
 tokens, matrículas completas ni payloads completos. Conservar eventos conforme
@@ -187,7 +187,10 @@ implementadas y probadas en SQL aislado, incluida invalidación entre instancias
 El publicador invalida versiones de dispositivos al desactivar talleres y la
 ingesta Application aplica idempotencia con persistencia atómica. T003-14 expone
 el contrato HTTP y T003-15 integra retención de auditoría/tokens en el supervisor
-existente. No hay verificación integral de todos los criterios todavía.
+existente. T003-16/17 completan observabilidad, OpenAPI y pruebas transversales,
+con trazabilidad CP-001 a CP-018 en TASKS-003. T003-18/19 verifican las plantillas
+HTTP sintéticas y entregan runbook; T003-20 registra el cierre documental con
+evidencia. Se conservan las limitaciones externas detalladas en la sección 7.
 
 ## 7. Capacidad de referencia y trabajo posterior
 
@@ -202,9 +205,15 @@ planificación permanece por definir y no impide redactar el diseño.
 DESIGN-003 concreta implementación OAuth establecida, contratos HTTP,
 catálogo verificable de formatos de matrícula, límites, control de concurrencia,
 integración con el catálogo de talleres y persistencia. TASKS-003
-planifica pruebas unitarias, HTTP y SQL Server aislado, y verificación con
-Postman y dispositivos o emisores externos. No declarar implementado o probado
-lo documentado. La interfaz del panel continúa fuera de este repositorio.
+registra la implementación y las pruebas unitarias, HTTP y SQL Server aislado
+ejecutadas. El cierre de T003-20 del 16 de noviembre de 2026 relaciona los
+18 CA con los 18 CP y sus resultados TRX en TASKS-003 / 11. El
+[runbook](../runbooks/lpr-event-ingestion.md) y la
+[colección Postman](../http/RF-003.postman_collection.json) describen la operación.
+Las 22 plantillas HTTP se probaron con SQL aislado; el runtime de Postman/Vault
+y dispositivos físicos no se han ejecutado. Tampoco se acredita AD corporativo,
+backup/restore físico, carga de producción ni soporte de otro motor SQL.
+La interfaz del panel continúa fuera de este repositorio.
 
 ## 8. Referencias
 

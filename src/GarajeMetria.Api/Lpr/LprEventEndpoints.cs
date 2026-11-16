@@ -32,8 +32,10 @@ public static class LprEventEndpoints
             return LprProblems.Failure(result.Error);
         }
         var value = result.Value!;
-        return Results.Json(new LprEventResponse(value.Receipt.EventId, value.Receipt.ReceivedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
-            value.Duplicate, value.Receipt.PlateStatus), statusCode: value.Duplicate ? 200 : 201);
+        var response = new LprEventResponse(value.Receipt.EventId, value.Receipt.ReceivedAt.UtcDateTime.ToString("O", CultureInfo.InvariantCulture),
+            value.Duplicate, value.Receipt.PlateStatus);
+        context.Items[LprTelemetry.ReceiptItem] = response;
+        return Results.Json(response, statusCode: value.Duplicate ? 200 : 201);
     }).RequireAuthorization(LprOAuth.WriterPolicy).WithMetadata(new LprTrafficMetadata(LprTraffic.Event))
         .WithName("ReceiveLprEvent").WithTags("LPR Events").WithSummary("Recibir una observación LPR de un dispositivo")
         .Produces<LprEventResponse>(201).Produces<LprEventResponse>(200).ProducesProblem(400).ProducesProblem(401).ProducesProblem(403)

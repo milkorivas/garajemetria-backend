@@ -3,17 +3,16 @@
 | Campo | Valor |
 | --- | --- |
 | Requerimiento | [RF-003](../requirements/RF-003-lpr-event-ingestion.md) |
-| Estado | Recepción HTTP idempotente y retención implementadas; observabilidad y verificación transversal pendientes |
+| Estado | Entregado: T003-01 a T003-20 completadas; 18 CA/18 CP con evidencia automatizada y límites externos explícitos |
 | Plataforma | C# 14, .NET 10, ASP.NET Core, EF Core y SQL Server |
 | Dependencias | RF-001, RF-002 y RF-009; interpretación posterior en RF-004 |
-| Plan de tareas | [TASKS-003](../tasks/TASKS-003-lpr-event-ingestion.md), T003-01 a T003-15 implementadas |
+| Plan de tareas | [TASKS-003](../tasks/TASKS-003-lpr-event-ingestion.md), T003-01 a T003-20 completadas |
 
 ## 1. Alcance y decisiones
 
 Este documento concreta contratos, aislamiento, persistencia y pruebas de
 RF-003. RN y CA se refieren a ese requerimiento. No implementa la interfaz del
-panel, imágenes, consultas de historial ni cálculo de estancias. No implica
-que las clases y rutas aquí propuestas ya existan.
+panel, imágenes, consultas de historial ni cálculo de estancias. La implementación y su evidencia de cierre se detallan en TASKS-003 / 11.
 
 La base inspeccionada contiene `SessionBearerHandler`, `AuthenticationDbContext`,
 `SqlTransactions`, catálogo local y administración de usuarios. Se reutilizan
@@ -37,8 +36,8 @@ Decisiones técnicas nuevas:
 
 Usar OpenIddict 7.7.2 como referencia estable de este diseño, con todos sus
 paquetes en la misma versión. Su documentación declara soporte ASP.NET Core
-10.0. Antes del primer restore de implementación, comprobar compatibilidad y
-avisos de seguridad; si hay que cambiar esta referencia, registrar la versión
+10.0. La compatibilidad y auditoría se comprobaron durante la implementación.
+Ante nuevas restauraciones o cambios, revisar los avisos y registrar la versión
 estable elegida, sin incorporar previews ni cambiar .NET 10 o EF Core 10.
 
 T003-01 verificada el 13 de noviembre de 2026: paquetes fijados con la propiedad
@@ -326,8 +325,9 @@ Un secreto cuya respuesta se pierda no puede recuperarse. Tras resultado inciert
 consultar detalle/ETag y ejecutar una rotación explícita si hace falta; no
 reproducir automáticamente POST de alta o rotación. Alta sin respuesta requiere
 localizar registro por lista y contexto administrativo; el nombre no es único ni
-identifica de forma fiable un dispositivo físico. Documentar este procedimiento
-en el futuro runbook. No generar un segundo dispositivo de forma automática.
+identifica de forma fiable un dispositivo físico. El
+[runbook](../runbooks/lpr-event-ingestion.md#4-custodiar-rotar-y-recuperar-acceso)
+documenta la recuperación; no generar un segundo dispositivo de forma automática.
 
 ## 5. Matrículas
 
@@ -512,7 +512,9 @@ Incorporar migración y snapshot con `--context AuthenticationDbContext`.
 
 T003-06/07: migración `20261113115955_LprPersistence` generada y verificada en
 SQL aislado vacío y desde WorkshopAssignments con datos sintéticos RF-001/002/009.
-No aplicada a la base local del desarrollador ni a producción. Los stores Core
+La verificación de esa fase solo aplicó la migración en bases de tests; el
+estado de cada entorno se consulta por separado. El cierre documental no
+aplica migraciones ni acredita producción. Los stores Core
 usan el mismo contexto que `LprUnitOfWork`, con caché deshabilitada. El vínculo
 `OAuthApplicationId` es único/requerido/restrictivo y toma `deviceId:N` como clave
 interna de aplicación OAuth; `client_id` mantiene el prefijo `lpr_` del diseño.
@@ -551,7 +553,7 @@ ejemplos. Valores iniciales del diseño, configurables y validados al arranque:
 | DeviceOAuth:TokensPerClient / TokensPerIp | 10 / 120 por ventana. |
 | Lpr:AdminWritesPerUser | 30 por ventana. |
 | Lpr:RateLimitNamespace | Identificador estable común al despliegue, obligatorio, hasta 128 caracteres; distinto lógicamente del namespace de login. |
-| DeviceOAuth:DeviceTokenRetentionHours | 24; positivo, hasta 876000. Su limpieza se integra en T003-15, no durante este tramo. |
+| DeviceOAuth:DeviceTokenRetentionHours | 24; positivo, hasta 876000. Limpieza implementada en T003-15 con el supervisor compartido. |
 
 Son límites de protección iniciales, no objetivos de capacidad prometidos.
 T003-08 implementa validación al arranque, incluidos certificado privado RSA de
@@ -562,8 +564,8 @@ con los de usuario. El archivo privado requiere las secciones del
 Reutilizar el patrón SQL de cuotas, ampliando contratos/options sin acoplar LPR
 a nombres de política de login. Namespaces separados `lpr:*`, reloj SQL y
 fingerprint de configuración común entre instancias; desacuerdo o SQL fallido
-produce 503. Verificar en pruebas la ampliación, porque el RateLimitStore actual
-solo reconoce las políticas de autenticación de usuarios.
+produce 503. Verificar en pruebas la ampliación, manteniendo el RateLimitStore de autenticación de usuarios separado
+del adaptador LprRateLimitStore.
 
 `LprRateLimitStore` implementa las políticas separadas usando las tablas de cuotas
 existentes y sin el gate de disponibilidad RF-001. Incluye fingerprint de opciones
@@ -621,8 +623,7 @@ RF-001; una comprobación final del reloj SQL revierte el lote si venció el lea
 CleanupResult incorpora DeviceTokens y los logs del supervisor registran ese
 recuento, sin tokens ni secretos. No requiere migración nueva.
 
-Logs estructurados: operación, resultado, correlación, dispositivo interno y
-recuentos, sin matrícula, JSON completo, cabecera Authorization ni secreto.
+Logs estructurados: operación, resultado, correlación y recuentos, sin matrícula, JSON completo, cabecera Authorization ni secreto.
 Desactivar logging de payloads/tokens en OpenIddict/IdentityModel y sensible EF.
 Métricas: aceptados, duplicados, conflictos, formatos inválidos, fuera de plazo,
 fallos de autenticación/SQL y latencia, sin etiquetas con matrícula o clientId
@@ -631,10 +632,10 @@ existente sin publicar cadenas o esquemas internos.
 
 ## 9. Pruebas y trazabilidad
 
-La matriz siguiente describe la verificación completa, aún pendiente. Las
+La matriz siguiente tiene trazabilidad automatizada en TASKS-003 / 10. Las
 pruebas de preparación, Domain, Application, persistencia y OAuth HTTP de T003-01 a
-T003-15 están ejecutadas y registradas en TASKS-003 / 9; incluyen ingesta HTTP
-idempotente y retención, pero no cierran toda la matriz transversal. Domain/Application
+T003-19 están ejecutadas y registradas en TASKS-003 / 9; incluyen ingesta HTTP,
+retención, observabilidad y carreras deterministas. Domain/Application
 usan reloj y repositorios dobles sin red o base de datos. HTTP con
 WebApplicationFactory; persistencia y OAuth EF con SQL Server real aislado,
 nunca EF InMemory ni SQLite. Datos sintéticos. La suite completa está sujeta a
@@ -661,21 +662,23 @@ la frecuencia diaria de AGENTS.md; documentación sola no la requiere.
 | CP-017 | CA-010, CA-017 | Cuotas SQL compartidas entre instancias, ventana exacta, duplicados consumen y Retry-After correcto; no se confunden con cuotas RF-001. |
 | CP-018 | CA-002, CA-005 | Arquitectura: sin referencias OpenIddict/HTTP/EF en capas internas, sin DbContext en endpoints; migración preserva RF-001/002/009 y constraints reales. |
 
-Verificación manual posterior con Postman/Bruno: login de Administrador, alta,
-token por Basic/form, evento 201, reintento 200, conflicto 409, matrícula inválida
-201 y revocación con token previo rechazado. Guardar colección sin secretos ni
-datos reales. No declarar probada una cámara o proveedor por probar HTTP.
+El [runbook](../runbooks/lpr-event-ingestion.md) y la
+[colección Postman](../http/RF-003.postman_collection.json) cubren login HTTP,
+alta, token Basic/form, evento 201, reintento 200, conflicto 409, lectura inválida
+y revocación, rotación y reactivación. LprRunbookTests ejecutó las 22 plantillas
+contra SQL aislado; los scripts pasan comprobación sintáctica, sin acreditar
+runtime nativo Postman/Vault ni un proveedor o hardware real.
 
-## 10. Preparación para implementación
+## 10. Implementación entregada y límites
 
 El plan TASKS-003 organiza los tramos dependientes: persistencia/modelo; adaptación
 OpenIddict y esquemas; administración/auditoría; publicación de catálogo e
 invalidación; ingesta; límites/retención; OpenAPI y runbook; pruebas trazables.
-Actualizar DESIGN-009 al implementar su extensión y registrar limitaciones de
-verificación. No añadir tareas marcadas como completadas ni aplicar migraciones
-por haber escrito este diseño.
+DESIGN-009 recoge la extensión implementada de invalidación transaccional.
+El cierre de la sección 11 de TASKS-003 se basa en implementación y resultados
+reales, no solo en este diseño, y no aplica migraciones.
 
-El tramo T003-01 a T003-15 implementa preparación, dominio, contratos/persistencia,
+El tramo T003-01 a T003-17 implementa preparación, dominio, contratos/persistencia,
 cuotas/configuración, administración HTTP con auditoría y servidor OAuth.
 El esquema de dispositivos valida firma/cifrado, issuer, audiencia, entrada de
 token y estado/versión/taller actuales en SQL. Se verifica la invalidación entre
@@ -703,10 +706,30 @@ aceptando ceros sobrantes/notación exponencial exacta. Respuestas snake_case
 201/200 sin matrícula ni Location, cuota IP y por dispositivo, errores seguros y
 esquema exclusivo con scope de escritura. T003-15 completa retención coordinada.
 
-Continuar con T003-16 para completar observabilidad/OpenAPI, después pruebas
-transversales y runbook final. El endpoint ya se puede probar según la guía de preparación.
+T003-16 completa cabeceras/precondiciones y esquemas OpenAPI, CORS administrativo
+sin ampliar orígenes, métricas con etiquetas acotadas, logs seguros y diagnóstico
+SQL de las tablas/columnas LPR/OAuth sin leer filas sensibles. Documentación
+deshabilitada por defecto; no se publican metadatos OAuth anónimos.
 
-OpenAPI deberá describir Client Credentials para ingesta, Basic/form para token,
+T003-17 añade carreras SQL con barreras deterministas para duplicados, expiración
+durante espera y ambos órdenes entre catálogo e ingesta; la emisión conserva
+la versión anterior frente a cambios de credenciales o catálogo. Incluye
+recuperación de rotación con commit sin acuse y trazabilidad CP-001 a CP-018 en
+TASKS-003. Los hosts de prueba tienen servicios/scopes independientes y SQL real.
+
+T003-18/19 entregan runbook y colección sin secretos, dos pruebas nuevas
+correctas y flujo sintético de 22 peticiones: dos eventos y seis auditorías,
+dispositivo final inactivo y sin credenciales. T003-20 reconcilia la documentación
+y los 18 CA/18 CP con resultados reales en TASKS-003 / 11. Se reutiliza la suite
+completa del 16 de noviembre de 2026 (579 correctas, cero fallidas y una omitida
+LDAPS), más las dos pruebas de runbook; no es una segunda ejecución completa.
+Build Release sin advertencias y formato verificados en T003-19.
+
+No se acredita Postman/Vault nativo, cámara física, AD corporativo,
+backup/restore físico ni despliegue o capacidad de producción. RF-004/005/007/008
+conservan interpretación, consultas, imágenes y panel respectivamente.
+
+OpenAPI describe Client Credentials para ingesta, Basic/form para token,
 Bearer de usuarios para administración, todos los DTOs, errores y precondiciones;
 usar ejemplos sintéticos y campos de secreto write-only cuando corresponda.
 No habilitar Swagger en producción salvo configuración explícita existente.

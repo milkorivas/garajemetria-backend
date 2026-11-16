@@ -1,0 +1,1277 @@
+{
+  "info": {
+    "name": "GarajeMetría RF-003 — synthetic acceptance flow",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run 00–21 in order against a test environment. Requires local Postman Vault and trusted HTTPS. No secrets are stored in this collection. See docs/runbooks/lpr-event-ingestion.md. Each run preserves a new historical device and two synthetic observations; it ends with that device inactive. No DELETE or production migration is performed."
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const base = pm.variables.get('baseUrl');",
+          "const url = require('url').parse(base);",
+          "if (!base || base.trim() !== base || url.protocol !== 'https:' || !url.host || url.auth || url.search || url.hash || base.endsWith('/')) throw new Error('Set a trusted HTTPS baseUrl without trailing slash, userinfo, query or fragment.');"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://localhost:7040",
+      "type": "string"
+    },
+    {
+      "key": "adminUsername",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "siteId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "deviceName",
+      "value": "RF-003 synthetic acceptance",
+      "type": "string"
+    },
+    {
+      "key": "deviceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "clientId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "deviceEtag",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "eventId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "invalidEventId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "captureTimestamp",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "receivedAt",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Bootstrap antiforgery",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        },
+        "url": "{{baseUrl}}/api/auth/antiforgery"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": []
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "await pm.vault.set('garajemetria-csrf-token', pm.response.json().requestToken);"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "01 Login administrator",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-CSRF-Token",
+            "value": "{{csrfToken}}"
+          }
+        ],
+        "auth": {
+          "type": "noauth"
+        },
+        "url": "{{baseUrl}}/api/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{adminUsername}}\",\n  \"password\": \"{{adminPassword}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('csrfToken', await pm.vault.get('garajemetria-csrf-token'));",
+              "const password = await pm.vault.get('garajemetria-admin-password');",
+              "pm.request.body.update(JSON.stringify({ username: pm.variables.get('adminUsername'), password }));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "const data = pm.response.json();",
+              "pm.test('Administrator role', () => pm.expect(data.user.role).to.eql('administrator'));",
+              "await pm.vault.set('garajemetria-admin-token', data.accessToken);"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "02 Register synthetic device",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/devices",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"{{deviceName}}\",\n  \"workshopId\": \"{{siteId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('adminToken', await pm.vault.get('garajemetria-admin-token'));",
+              "if (!pm.variables.get('siteId')) throw new Error('Set siteId to an active test workshop before creating a device.');",
+              "pm.request.body.update(JSON.stringify({ name: pm.variables.get('deviceName'), workshopId: pm.variables.get('siteId') }));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "if (pm.response.code !== 201) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "const data = pm.response.json();",
+              "pm.collectionVariables.set('deviceId', data.device.id);",
+              "pm.collectionVariables.set('clientId', data.credentials.clientId);",
+              "await pm.vault.set('garajemetria-device-secret', data.credentials.clientSecret);",
+              "pm.collectionVariables.set('deviceEtag', pm.response.headers.get('ETag'));",
+              "pm.collectionVariables.set('eventId', pm.variables.replaceIn('{{$guid}}'));",
+              "pm.collectionVariables.set('invalidEventId', pm.variables.replaceIn('{{$guid}}'));",
+              "pm.collectionVariables.set('captureTimestamp', new Date().toISOString());"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "03 Issue device token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{clientId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{deviceSecret}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/connect/token",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials",
+              "type": "text"
+            },
+            {
+              "key": "scope",
+              "value": "lpr.events.write",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('deviceSecret', await pm.vault.get('garajemetria-device-secret'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "const data = pm.response.json();",
+              "pm.test('Device token only', () => { pm.expect(data.token_type).to.eql('Bearer'); pm.expect(data.scope).to.eql('lpr.events.write'); pm.expect(data).not.to.have.property('refresh_token'); });",
+              "await pm.vault.set('garajemetria-device-token', data.access_token);"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "04 Receive valid event",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{deviceToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/events",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_id\": \"{{eventId}}\",\n  \"capture_timestamp\": \"{{captureTimestamp}}\",\n  \"device_id\": \"{{deviceId}}\",\n  \"site_id\": \"{{siteId}}\",\n  \"plate\": \"0000 BBB\",\n  \"confidence\": 0.97,\n  \"direction\": \"entry\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('deviceToken', await pm.vault.get('garajemetria-device-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "if (pm.response.code !== 201) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "const data = pm.response.json();",
+              "pm.test('New valid observation', () => { pm.expect(data.duplicate).to.eql(false); pm.expect(data.plate_status).to.eql('valid'); });",
+              "pm.collectionVariables.set('receivedAt', data.received_at);"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "05 Confirm identical retry",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{deviceToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/events",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_id\": \"{{eventId}}\",\n  \"capture_timestamp\": \"{{captureTimestamp}}\",\n  \"device_id\": \"{{deviceId}}\",\n  \"site_id\": \"{{siteId}}\",\n  \"plate\": \"0000 BBB\",\n  \"confidence\": 0.97,\n  \"direction\": \"entry\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('deviceToken', await pm.vault.get('garajemetria-device-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "const data = pm.response.json();",
+              "pm.test('Original receipt', () => { pm.expect(data.duplicate).to.eql(true); pm.expect(data.received_at).to.eql(pm.variables.get('receivedAt')); });"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "06 Reject conflicting retry",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{deviceToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/events",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_id\": \"{{eventId}}\",\n  \"capture_timestamp\": \"{{captureTimestamp}}\",\n  \"device_id\": \"{{deviceId}}\",\n  \"site_id\": \"{{siteId}}\",\n  \"plate\": \"0000 BBC\",\n  \"confidence\": 0.97,\n  \"direction\": \"entry\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('deviceToken', await pm.vault.get('garajemetria-device-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+              "if (pm.response.code !== 409) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "pm.test('Generic conflict', () => pm.expect(pm.response.json().code).to.eql('event_conflict'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "07 Preserve invalid plate and low confidence",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{deviceToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/events",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_id\": \"{{invalidEventId}}\",\n  \"capture_timestamp\": \"{{captureTimestamp}}\",\n  \"device_id\": \"{{deviceId}}\",\n  \"site_id\": \"{{siteId}}\",\n  \"plate\": \"synthetic-invalid\",\n  \"confidence\": 0,\n  \"direction\": null\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('deviceToken', await pm.vault.get('garajemetria-device-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "if (pm.response.code !== 201) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "pm.test('Invalid format retained', () => pm.expect(pm.response.json().plate_status).to.eql('invalid'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "08 Read device and current ETag",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/devices/{{deviceId}}"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('adminToken', await pm.vault.get('garajemetria-admin-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "pm.collectionVariables.set('deviceEtag', pm.response.headers.get('ETag'));",
+              "pm.test('No recoverable secret', () => pm.expect(pm.response.json()).not.to.have.property('credentials'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "09 Rotate credentials",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "If-Match",
+            "value": "{{deviceEtag}}"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/devices/{{deviceId}}/credentials/rotate"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('adminToken', await pm.vault.get('garajemetria-admin-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "await pm.vault.set('garajemetria-device-secret', pm.response.json().credentials.clientSecret);",
+              "pm.collectionVariables.set('deviceEtag', pm.response.headers.get('ETag'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "10 Reject token issued before rotation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{deviceToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/events",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_id\": \"{{eventId}}\",\n  \"capture_timestamp\": \"{{captureTimestamp}}\",\n  \"device_id\": \"{{deviceId}}\",\n  \"site_id\": \"{{siteId}}\",\n  \"plate\": \"0000 BBB\",\n  \"confidence\": 0.97,\n  \"direction\": \"entry\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('deviceToken', await pm.vault.get('garajemetria-device-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "if (pm.response.code !== 401) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "pm.test('Invalid old token', () => pm.expect(pm.response.json().code).to.eql('invalid_device_token'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "11 Issue token after rotation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{clientId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{deviceSecret}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/connect/token",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials",
+              "type": "text"
+            },
+            {
+              "key": "scope",
+              "value": "lpr.events.write",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('deviceSecret', await pm.vault.get('garajemetria-device-secret'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "const data = pm.response.json();",
+              "pm.test('Device token only', () => { pm.expect(data.token_type).to.eql('Bearer'); pm.expect(data.scope).to.eql('lpr.events.write'); pm.expect(data).not.to.have.property('refresh_token'); });",
+              "await pm.vault.set('garajemetria-device-token', data.access_token);"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "12 Retry with current authorization",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{deviceToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/events",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_id\": \"{{eventId}}\",\n  \"capture_timestamp\": \"{{captureTimestamp}}\",\n  \"device_id\": \"{{deviceId}}\",\n  \"site_id\": \"{{siteId}}\",\n  \"plate\": \"0000 BBB\",\n  \"confidence\": 0.97,\n  \"direction\": \"entry\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('deviceToken', await pm.vault.get('garajemetria-device-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "const data = pm.response.json();",
+              "pm.test('Original receipt', () => { pm.expect(data.duplicate).to.eql(true); pm.expect(data.received_at).to.eql(pm.variables.get('receivedAt')); });"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "13 Revoke credentials",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "If-Match",
+            "value": "{{deviceEtag}}"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/devices/{{deviceId}}/credentials/revoke"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('adminToken', await pm.vault.get('garajemetria-admin-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 204', () => pm.response.to.have.status(204));",
+              "if (pm.response.code !== 204) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "pm.collectionVariables.set('deviceEtag', pm.response.headers.get('ETag'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "14 Reject revoked token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{deviceToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/events",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_id\": \"{{eventId}}\",\n  \"capture_timestamp\": \"{{captureTimestamp}}\",\n  \"device_id\": \"{{deviceId}}\",\n  \"site_id\": \"{{siteId}}\",\n  \"plate\": \"0000 BBB\",\n  \"confidence\": 0.97,\n  \"direction\": \"entry\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('deviceToken', await pm.vault.get('garajemetria-device-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "if (pm.response.code !== 401) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "pm.test('Revoked token rejected', () => pm.expect(pm.response.json().code).to.eql('invalid_device_token'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "15 Reject revoked secret",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{clientId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{deviceSecret}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/connect/token",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials",
+              "type": "text"
+            },
+            {
+              "key": "scope",
+              "value": "lpr.events.write",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('deviceSecret', await pm.vault.get('garajemetria-device-secret'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "if (pm.response.code !== 401) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "pm.test('OAuth invalid_client', () => pm.expect(pm.response.json().error).to.eql('invalid_client'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "16 Deactivate record",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "If-Match",
+            "value": "{{deviceEtag}}"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/devices/{{deviceId}}/deactivate"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('adminToken', await pm.vault.get('garajemetria-admin-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 204', () => pm.response.to.have.status(204));",
+              "if (pm.response.code !== 204) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "pm.collectionVariables.set('deviceEtag', pm.response.headers.get('ETag'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "17 Reactivate with new credentials",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "If-Match",
+            "value": "{{deviceEtag}}"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/devices/{{deviceId}}/reactivate"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('adminToken', await pm.vault.get('garajemetria-admin-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "const data = pm.response.json();",
+              "pm.test('Immutable identity', () => { pm.expect(data.device.id).to.eql(pm.variables.get('deviceId')); pm.expect(data.device.workshopId).to.eql(pm.variables.get('siteId')); });",
+              "await pm.vault.set('garajemetria-device-secret', data.credentials.clientSecret);",
+              "pm.collectionVariables.set('deviceEtag', pm.response.headers.get('ETag'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "18 Issue token after reactivation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{clientId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{deviceSecret}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/connect/token",
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials",
+              "type": "text"
+            },
+            {
+              "key": "scope",
+              "value": "lpr.events.write",
+              "type": "text"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('deviceSecret', await pm.vault.get('garajemetria-device-secret'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "const data = pm.response.json();",
+              "pm.test('Device token only', () => { pm.expect(data.token_type).to.eql('Bearer'); pm.expect(data.scope).to.eql('lpr.events.write'); pm.expect(data).not.to.have.property('refresh_token'); });",
+              "await pm.vault.set('garajemetria-device-token', data.access_token);"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "19 Confirm historical event after reactivation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{deviceToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/events",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_id\": \"{{eventId}}\",\n  \"capture_timestamp\": \"{{captureTimestamp}}\",\n  \"device_id\": \"{{deviceId}}\",\n  \"site_id\": \"{{siteId}}\",\n  \"plate\": \"0000 BBB\",\n  \"confidence\": 0.97,\n  \"direction\": \"entry\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('deviceToken', await pm.vault.get('garajemetria-device-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "const data = pm.response.json();",
+              "pm.test('Original receipt', () => { pm.expect(data.duplicate).to.eql(true); pm.expect(data.received_at).to.eql(pm.variables.get('receivedAt')); });"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "20 Finish with inactive record",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "If-Match",
+            "value": "{{deviceEtag}}"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/devices/{{deviceId}}/deactivate"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('adminToken', await pm.vault.get('garajemetria-admin-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 204', () => pm.response.to.have.status(204));",
+              "if (pm.response.code !== 204) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "pm.collectionVariables.set('deviceEtag', pm.response.headers.get('ETag'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    },
+    {
+      "name": "21 Reject token after final deactivation",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{deviceToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/lpr/events",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"event_id\": \"{{eventId}}\",\n  \"capture_timestamp\": \"{{captureTimestamp}}\",\n  \"device_id\": \"{{deviceId}}\",\n  \"site_id\": \"{{siteId}}\",\n  \"plate\": \"0000 BBB\",\n  \"confidence\": 0.97,\n  \"direction\": \"entry\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.variables.set('deviceToken', await pm.vault.get('garajemetria-device-token'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "if (pm.response.code !== 401) { pm.execution.setNextRequest(null); throw new Error('Unexpected status; collection stopped. See the RF-003 runbook.'); }",
+              "pm.test('Inactive token rejected', () => pm.expect(pm.response.json().code).to.eql('invalid_device_token'));"
+            ]
+          }
+        }
+      ],
+      "response": []
+    }
+  ]
+}

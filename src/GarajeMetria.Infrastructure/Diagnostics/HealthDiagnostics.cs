@@ -21,9 +21,18 @@ internal sealed class HealthDiagnostics(IConfiguration configuration, DirectoryO
             await using var connection = new SqlConnection(settings.ConnectionString);
             await connection.OpenAsync(timeout.Token);
             await using var command = connection.CreateCommand();
-            command.CommandText = "SELECT 1";
+            // Zero-row projections verify the stores and required columns without reading sensitive data.
+            command.CommandText = """
+                SELECT TOP (0) [Id], [OAuthApplicationId], [AuthorizationVersion] FROM [LprDevices];
+                SELECT TOP (0) [EventId], [ReceivedAt], [Confidence], [PlateRulesVersion] FROM [LprEvents];
+                SELECT TOP (0) [Id], [OccurredAt], [CurrentVersion] FROM [DeviceAdministrationAudits];
+                SELECT TOP (0) [Id], [ClientId], [ClientSecret] FROM [OpenIddictApplications];
+                SELECT TOP (0) [Id], [Status] FROM [OpenIddictAuthorizations];
+                SELECT TOP (0) [Id], [Name] FROM [OpenIddictScopes];
+                SELECT TOP (0) [Id], [ExpirationDate], [Status] FROM [OpenIddictTokens];
+                """;
             command.CommandTimeout = 5;
-            await command.ExecuteScalarAsync(timeout.Token);
+            await command.ExecuteNonQueryAsync(timeout.Token);
             return ModuleStatus.Ok;
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
