@@ -11,4 +11,7 @@
     <Project Path="tests/GarajeMetria.Domain.Tests/GarajeMetria.Domain.Tests.csproj" />
     <Project Path="tests/GarajeMetria.IntegrationTests/GarajeMetria.IntegrationTests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/GarajeMetria.StayMaintenance/GarajeMetria.StayMaintenance.csproj" />
+  </Folder>
 </Solution>

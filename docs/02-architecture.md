@@ -27,6 +27,22 @@ HTTP y cierre trazable de los 18 CA/18 CP: véase el
 [TASKS-003 / 11](tasks/TASKS-003-lpr-event-ingestion.md#11-cierre-de-t003-20).
 Las plantillas HTTP se verificaron con SQL aislado; Postman/Vault nativo y
 hardware real no se presentan como ejecutados.
+El diseño de RF-004 se recoge en
+[DESIGN-004 — Entradas, salidas y estancias](design/DESIGN-004-arrivals-departures-and-stays.md):
+prevé cálculo de dominio con persistencia en la misma transacción de ingesta,
+cierre diario recuperable y ubicación histórica de dispositivos. Su sección 14 registra las decisiones funcionales
+resueltas el 17 de noviembre de 2026.
+[TASKS-004](tasks/TASKS-004-arrivals-departures-and-stays.md) registra el backend
+de cálculo integrado: dominio puro, políticas inmutables, repositorios SQL,
+recálculo incremental con presupuestos, historial de ubicación y linaje,
+ingesta síncrona, cierre recuperable y mantenimiento reanudable. La política
+activa se verifica bajo el bloqueo de catálogo; los duplicados conservan el
+recibo original sin recalcular ni resolver de nuevo la ubicación. API y worker
+confirman cada unidad de forma atómica. No se activa política al arrancar.
+La consulta HTTP de historial y las correcciones se concretarán en RF-005/006.
+Operación: [runbook de estancias](runbooks/stays.md) y
+[configuración](configuration/stays-configuration.md). Las verificaciones reales
+y sus límites se registran en el plan; no equivalen a un despliegue corporativo.
 El estado y la preparación operativa se detallan en el
 [runbook de autenticación](runbooks/authentication.md).
 

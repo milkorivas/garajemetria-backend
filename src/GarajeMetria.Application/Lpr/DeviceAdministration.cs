@@ -53,6 +53,12 @@ public sealed class DeviceAdministration(ILprDeviceRepository devices, ILprDevic
             var device = new LprDevice(id, request.Name, request.WorkshopId, true, now);
             devices.Add(device);
             var generated = await credentials.CreateAsync(id, token);
+            if (request.LocationDescription is not null)
+            {
+                var version = device.Version;
+                device.ChangeLocation(request.LocationDescription, now);
+                if (!await devices.SaveAsync(device, version, token)) return Outcome<DeviceProvisioningResult>.Fail(FailureCode.PreconditionFailed);
+            }
             Audit(DeviceAdministrationOperation.Created, null, device, now, actor.Id);
             return Outcome<DeviceProvisioningResult>.Success(new(Dto(device), generated));
         }, ct);
@@ -81,6 +87,7 @@ public sealed class DeviceAdministration(ILprDeviceRepository devices, ILprDevic
             var changed = operation switch
             {
                 DeviceAdministrationOperation.Renamed => device.Rename(name!, now),
+                DeviceAdministrationOperation.LocationChanged => device.ChangeLocation(name!, now),
                 DeviceAdministrationOperation.Deactivated => device.Deactivate(now),
                 DeviceAdministrationOperation.CredentialsRevoked => device.RevokeCredentials(now),
                 DeviceAdministrationOperation.Reactivated => Reactivate(device, now),
@@ -110,7 +117,18 @@ public sealed class DeviceAdministration(ILprDeviceRepository devices, ILprDevic
         DateTimeOffset now, Guid actor) => audits.Add(new(Guid.NewGuid(), actor, operation, previous, device.Snapshot(), now, context.CorrelationId));
     private static bool Reactivate(LprDevice device, DateTimeOffset now) { device.Reactivate(true, now); return true; }
     private static bool Rotate(LprDevice device, DateTimeOffset now) { device.RotateCredentials(true, now); return true; }
-    private static DeviceDto Dto(LprDevice d) => new(d.Id, d.Name, d.WorkshopId, d.IsActive, d.HasCredentials, d.CreatedAt, d.UpdatedAt, d.Version);
+    private static DeviceDto Dto(LprDevice d) => new(d.Id, d.Name, d.WorkshopId, d.IsActive, d.HasCredentials, d.CreatedAt, d.UpdatedAt, d.Version)
+    { LocationDescription = d.Location?.Description, LocationRecordedAt = d.Location?.RecordedAt };
+}
+
+public sealed class UpdateDeviceLocationHandler(DeviceAdministration service) : IRequestHandler<UpdateDeviceLocationCommand, Outcome<DeviceMutationResult>>
+{
+    public async Task<Outcome<DeviceMutationResult>> Handle(UpdateDeviceLocationCommand request, CancellationToken ct)
+    {
+        var result = await service.ChangeAsync(request.DeviceId, request.ExpectedVersion, DeviceAdministrationOperation.LocationChanged,
+            request.LocationDescription, ct);
+        return result.Succeeded ? Outcome<DeviceMutationResult>.Success(new(result.Value!.Device.Version)) : new(null, result.Error);
+    }
 }
 
 internal sealed record DeviceChange(DeviceDto Device, DeviceCredentials? Credentials)

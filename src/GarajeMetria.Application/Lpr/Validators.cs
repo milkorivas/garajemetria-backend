@@ -9,6 +9,17 @@ public sealed class RegisterDeviceValidator : AbstractValidator<RegisterDeviceCo
     {
         RuleFor(x => x.Name).Must(LprValidation.ValidName).WithMessage("Invalid device name.");
         RuleFor(x => x.WorkshopId).Must(x => LprEventRules.ValidText(x, 256)).WithMessage("Invalid workshop identifier.");
+        RuleFor(x => x.LocationDescription).Must(x => x is null || LprValidation.ValidLocation(x))
+            .WithMessage("Invalid device location.");
+    }
+}
+public sealed class UpdateDeviceLocationValidator : AbstractValidator<UpdateDeviceLocationCommand>
+{
+    public UpdateDeviceLocationValidator()
+    {
+        RuleFor(x => x.DeviceId).NotEmpty();
+        RuleFor(x => x.ExpectedVersion).NotEmpty();
+        RuleFor(x => x.LocationDescription).Must(LprValidation.ValidLocation).WithMessage("Invalid device location.");
     }
 }
 public sealed class RenameDeviceValidator : AbstractValidator<RenameDeviceCommand>
@@ -100,6 +111,9 @@ public sealed class ValidateDeviceAccessValidator : AbstractValidator<ValidateDe
 
 internal static class LprValidation
 {
+    internal static bool ValidLocation(string? value) => value is not null && !value.Any(char.IsControl) &&
+        LprEventRules.ValidText(value.Trim(), 256);
+
     internal static bool ValidName(string? value) => value is not null && !value.Any(char.IsControl) &&
         LprEventRules.ValidText(value.Trim(), 128);
 }

@@ -1,10 +1,13 @@
 using GarajeMetria.Application.Authentication;
+using GarajeMetria.Application.Stays;
 using GarajeMetria.Domain.Lpr;
+using GarajeMetria.Domain.Stays;
 using MediatR;
 
 namespace GarajeMetria.Application.Lpr;
 
-public sealed class ReceiveLprEventHandler(ILprEventRepository events, ILprUnitOfWork unitOfWork, DeviceAccess access, LprOptions options)
+public sealed class ReceiveLprEventHandler(ILprEventRepository events, ILprUnitOfWork unitOfWork, DeviceAccess access, LprOptions options,
+    IStayRepository stays, IStayRecalculationService calculation, IObservationLocationWriter locations)
     : IRequestHandler<ReceiveLprEventCommand, Outcome<ReceiveLprEventResult>>
 {
     public async Task<Outcome<ReceiveLprEventResult>> Handle(ReceiveLprEventCommand request, CancellationToken ct)
@@ -35,6 +38,14 @@ public sealed class ReceiveLprEventHandler(ILprEventRepository events, ILprUnitO
             var observation = new LprEvent(request.EventId, request.DeviceId, request.WorkshopId, request.CapturedAt,
                 check.Now, request.PlateOriginal, request.Confidence, request.Direction);
             events.Add(observation);
+            var supplied = StayObservation.FromEvent(observation);
+            await locations.CaptureAsync(supplied, token);
+            if (observation.PlateStatus == "valid")
+            {
+                var partition = await stays.GetOrCreatePartitionAsync(observation.WorkshopId, observation.PlateNormalized, token);
+                partition = await stays.RegisterInputAsync(partition.Id, observation.EventId, partition.InputRevision, token);
+                await calculation.RecalculateAsync(partition, observation.CapturedAt, check.Now, StayProjectionCause.Ingestion, supplied, token);
+            }
             return Outcome<ReceiveLprEventResult>.Success(new(false, new(observation.EventId, observation.ReceivedAt, observation.PlateStatus)));
         }, ct);
 }

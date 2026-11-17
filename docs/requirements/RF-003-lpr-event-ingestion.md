@@ -2,7 +2,7 @@
 
 | ID | Requerimiento | Prioridad | Estado |
 | --- | --- | --- | --- |
-| RF-003 | Recepción de eventos LPR | Por definir | Definido; backend y verificación automatizada entregados, T003-01 a T003-20 completadas |
+| RF-003 | Recepción de eventos LPR | Alta | Definido; backend y verificación automatizada entregados, T003-01 a T003-20 completadas |
 
 ## 1. Objetivo y alcance
 
@@ -214,6 +214,22 @@ Las 22 plantillas HTTP se probaron con SQL aislado; el runtime de Postman/Vault
 y dispositivos físicos no se han ejecutado. Tampoco se acredita AD corporativo,
 backup/restore físico, carga de producción ni soporte de otro motor SQL.
 La interfaz del panel continúa fuera de este repositorio.
+
+## Integración posterior con RF-004
+
+El handler actual de recepción conserva autorización, idempotencia, ventana
+temporal y recibo RF-003. Para eventos nuevos exige política de estancias
+activa y coincidente; guarda ubicación y los efectos de estancias antes del
+mismo commit y del 201. Las inválidas se conservan con ubicación sin efectos
+de estancia; los reintentos idénticos mantienen 200 y el recibo original sin
+recalcular ni volver a resolver ubicación. M no amplía la ventana de admisión.
+
+El mantenimiento admite descripción opcional al crear, la devuelve en GET y
+permite actualizarla con PUT administrativo e If-Match. Las versiones son
+inmutables y el cambio no revoca credenciales. Ver
+[runbook RF-004](../runbooks/stays.md) y
+[TASKS-004](../tasks/TASKS-004-arrivals-departures-and-stays.md) para las
+verificaciones de la integración y sus límites operativos.
 
 ## 8. Referencias
 

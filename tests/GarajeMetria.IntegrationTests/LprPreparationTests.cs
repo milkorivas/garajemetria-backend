@@ -17,13 +17,14 @@ public sealed class LprTestEnvironment : IDisposable
     public string CertificatePassword { get; } = Guid.NewGuid().ToString("N");
     public string RateLimitNamespace { get; } = "lpr-test-" + Guid.NewGuid().ToString("N");
 
-    public LprTestEnvironment()
+    public LprTestEnvironment(DateTimeOffset? certificateInstant = null)
     {
         Directory.CreateDirectory(directory);
         try
         {
-            CreateCertificate(SigningCertificatePath, X509KeyUsageFlags.DigitalSignature);
-            CreateCertificate(EncryptionCertificatePath, X509KeyUsageFlags.KeyEncipherment);
+            var instant = certificateInstant ?? DateTimeOffset.UtcNow;
+            CreateCertificate(SigningCertificatePath, X509KeyUsageFlags.DigitalSignature, instant);
+            CreateCertificate(EncryptionCertificatePath, X509KeyUsageFlags.KeyEncipherment, instant);
         }
         catch
         {
@@ -58,13 +59,13 @@ public sealed class LprTestEnvironment : IDisposable
         AdminWritesPerUser = 30
     };
 
-    private void CreateCertificate(string path, X509KeyUsageFlags usage)
+    private void CreateCertificate(string path, X509KeyUsageFlags usage, DateTimeOffset instant)
     {
         using var key = RSA.Create(2048);
         var request = new CertificateRequest("CN=GarajeMetria-Lpr-Synthetic-Test", key,
             HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         request.CertificateExtensions.Add(new X509KeyUsageExtension(usage, true));
-        using var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(2));
+        using var certificate = request.CreateSelfSigned(instant.AddDays(-1), instant.AddDays(2));
         File.WriteAllBytes(path, certificate.Export(X509ContentType.Pfx, CertificatePassword));
     }
 

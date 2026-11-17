@@ -13,7 +13,12 @@ using Microsoft.Net.Http.Headers;
 namespace GarajeMetria.Api.Lpr;
 
 public sealed record LprDeviceResponse(Guid Id, string Name, string WorkshopId, bool IsActive, bool HasCredentials,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt);
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt)
+{
+    public string? LocationDescription { get; init; }
+    public DateTimeOffset? LocationRecordedAt { get; init; }
+    public override string ToString() => nameof(LprDeviceResponse);
+}
 public sealed record LprDevicePageResponse(IReadOnlyList<LprDeviceResponse> Items, int PageNumber, int PageSize, int TotalCount);
 public sealed record LprProvisioningResponse(LprDeviceResponse Device, DeviceCredentials Credentials)
 {
@@ -61,9 +66,10 @@ public static class LprAdministrationEndpoints
         group.MapPost("", async (HttpContext context, ISender sender) =>
         {
             if (context.Request.Query.Count != 0) return LprProblems.Invalid();
-            var read = await ReadAsync(context.Request, ["name", "workshopId"], context.RequestAborted);
+            var read = await ReadAsync(context.Request, ["name", "workshopId"], context.RequestAborted, ["locationDescription"]);
             if (read.Error is not null) return read.Error;
-            var result = await sender.Send(new RegisterDeviceCommand(read.Values!["name"], read.Values["workshopId"]), context.RequestAborted);
+            var result = await sender.Send(new RegisterDeviceCommand(read.Values!["name"], read.Values["workshopId"])
+            { LocationDescription = read.Values.GetValueOrDefault("locationDescription") }, context.RequestAborted);
             if (!result.Succeeded) return Error(context, result.Error!);
             var value = result.Value!;
             context.Response.Headers.ETag = UserAdministrationEndpoints.ETag(value.Device.Version);
@@ -83,6 +89,18 @@ public static class LprAdministrationEndpoints
             context.Response.Headers.ETag = UserAdministrationEndpoints.ETag(result.Value!.Version);
             return Results.NoContent();
         }).WithName("RenameLprDevice").WithSummary("Cambiar el nombre del dispositivo")).Produces(204).ProducesProblem(415);
+
+        Mutation(group.MapPut("/{id}/location", async (string id, HttpContext context, ISender sender) =>
+        {
+            var error = Precondition(context, id, out var deviceId, out var version);
+            if (error is not null) return error;
+            var read = await ReadAsync(context.Request, ["locationDescription"], context.RequestAborted);
+            if (read.Error is not null) return read.Error;
+            var result = await sender.Send(new UpdateDeviceLocationCommand(deviceId, read.Values!["locationDescription"], version), context.RequestAborted);
+            if (!result.Succeeded) return Error(context, result.Error!);
+            context.Response.Headers.ETag = UserAdministrationEndpoints.ETag(result.Value!.Version);
+            return Results.NoContent();
+        }).WithName("UpdateLprDeviceLocation").WithSummary("Cambiar la ubicación descriptiva del dispositivo")).Produces(204).ProducesProblem(415);
 
         MapState(group, "deactivate", "DeactivateLprDevice", "Desactivar el dispositivo", async (id, version, sender, ct) =>
         {
@@ -142,9 +160,10 @@ public static class LprAdministrationEndpoints
         if (failure.RetryAfterSeconds is { } seconds) context.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
         return LprProblems.Failure(failure);
     }
-    private static LprDeviceResponse Map(DeviceDto value) => new(value.Id, value.Name, value.WorkshopId, value.IsActive, value.HasCredentials, value.CreatedAt, value.UpdatedAt);
+    private static LprDeviceResponse Map(DeviceDto value) => new(value.Id, value.Name, value.WorkshopId, value.IsActive, value.HasCredentials, value.CreatedAt, value.UpdatedAt)
+    { LocationDescription = value.LocationDescription, LocationRecordedAt = value.LocationRecordedAt };
 
-    private static async Task<(Dictionary<string, string>? Values, IResult? Error)> ReadAsync(HttpRequest request, string[] fields, CancellationToken ct)
+    private static async Task<(Dictionary<string, string>? Values, IResult? Error)> ReadAsync(HttpRequest request, string[] fields, CancellationToken ct, string[]? optionalFields = null)
     {
         if (fields.Length != 0 && (!MediaTypeHeaderValue.TryParse(request.ContentType, out var type) ||
             !type.MediaType.Equals("application/json", StringComparison.OrdinalIgnoreCase) || type.Parameters.Count > 1 ||
@@ -171,10 +190,10 @@ public static class LprAdministrationEndpoints
             var values = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var property in json.RootElement.EnumerateObject())
             {
-                if (!fields.Contains(property.Name, StringComparer.Ordinal) || property.Value.ValueKind != JsonValueKind.String ||
+                if (!(fields.Contains(property.Name, StringComparer.Ordinal) || (optionalFields?.Contains(property.Name, StringComparer.Ordinal) ?? false)) || property.Value.ValueKind != JsonValueKind.String ||
                     !values.TryAdd(property.Name, property.Value.GetString()!)) return (null, LprProblems.Invalid());
             }
-            return values.Count == fields.Length ? (values, null) : (null, LprProblems.Invalid());
+            return fields.All(values.ContainsKey) ? (values, null) : (null, LprProblems.Invalid());
         }
         catch (Exception ex) when (ex is JsonException or DecoderFallbackException or InvalidOperationException or ArgumentException)
         { return (null, LprProblems.Invalid()); }

@@ -15,7 +15,7 @@ using OpenIddict.EntityFrameworkCore.Models;
 
 namespace GarajeMetria.IntegrationTests;
 
-public sealed class LprIngestionTests(SqlFixture database) : IClassFixture<SqlFixture>
+public sealed partial class LprIngestionTests(SqlFixture database) : IClassFixture<SqlFixture>
 {
     [SqlFact]
     public async Task IngestionPreservesInvalidAndLowConfidenceReadingsAndConfirmsOldSemanticRetries()

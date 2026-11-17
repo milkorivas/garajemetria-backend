@@ -1,0 +1,66 @@
+### Solo entorno sintético autorizado. Preparar taller confirmado y política activa según el runbook.
+### Completar tokens mediante RF-001 y usar el catálogo local existente; no crear talleres inventando rutas.
+@baseUrl = https://localhost
+@adminToken = REPLACE_WITH_SYNTHETIC_ADMIN_ACCESS_TOKEN
+@workshopId = REPLACE_WITH_CONFIRMED_SYNTHETIC_WORKSHOP_ID
+### Fijar una captura UTC dentro de la ventana RF-003 una sola vez para nuevo/reintento idéntico.
+@captureAt = 2026-11-17T13:00:00Z
+
+### Alta compatible: locationDescription es opcional.
+# @name registerCamera
+POST {{baseUrl}}/api/lpr/devices
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"name":"Synthetic camera","workshopId":"{{workshopId}}","locationDescription":"Synthetic main access"}
+
+@deviceId = {{registerCamera.response.body.$.device.id}}
+@clientId = {{registerCamera.response.body.$.credentials.clientId}}
+@clientSecret = {{registerCamera.response.body.$.credentials.clientSecret}}
+
+### Consultar ETag antes de modificar ubicación.
+# @name getCamera
+GET {{baseUrl}}/api/lpr/devices/{{deviceId}}
+Authorization: Bearer {{adminToken}}
+
+### Descripción nueva, credenciales/autorización de dispositivo conservadas.
+PUT {{baseUrl}}/api/lpr/devices/{{deviceId}}/location
+Authorization: Bearer {{adminToken}}
+If-Match: {{getCamera.response.headers.ETag}}
+Content-Type: application/json
+
+{"locationDescription":"Synthetic workshop access"}
+
+### OAuth de dispositivo: las credenciales no se envían en el cuerpo.
+# @name deviceToken
+POST {{baseUrl}}/connect/token
+Authorization: Basic {{clientId}} {{clientSecret}}
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&scope=lpr.events.write
+
+@deviceAccess = {{deviceToken.response.body.$.access_token}}
+
+### 201: evento y efectos de estancia confirmados juntos. UUID y matrícula sintéticos.
+POST {{baseUrl}}/api/lpr/events
+Authorization: Bearer {{deviceAccess}}
+Content-Type: application/json
+
+{"event_id":"00000000-0000-4000-8000-000000000401","device_id":"{{deviceId}}","site_id":"{{workshopId}}","capture_timestamp":"{{captureAt}}","plate":"1234BCD","confidence":0,"direction":"entry"}
+
+### 200: mismo cuerpo y UUID, recibo original; no recalcula ni actualiza ubicación histórica.
+POST {{baseUrl}}/api/lpr/events
+Authorization: Bearer {{deviceAccess}}
+Content-Type: application/json
+
+{"event_id":"00000000-0000-4000-8000-000000000401","device_id":"{{deviceId}}","site_id":"{{workshopId}}","capture_timestamp":"{{captureAt}}","plate":"1234BCD","confidence":0,"direction":"entry"}
+
+### 409: mismo UUID con otros valores; original preservado.
+POST {{baseUrl}}/api/lpr/events
+Authorization: Bearer {{deviceAccess}}
+Content-Type: application/json
+
+{"event_id":"00000000-0000-4000-8000-000000000401","device_id":"{{deviceId}}","site_id":"{{workshopId}}","capture_timestamp":"{{captureAt}}","plate":"1234BCD","confidence":0,"direction":"exit"}
+
+### Verificación de estancias y rastro: pruebas SQL/HTTP del plan y herramienta diagnose.
+### No existe todavía una ruta pública de historial RF-005; no usar estas peticiones con producción.

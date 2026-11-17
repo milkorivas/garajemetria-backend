@@ -36,6 +36,9 @@ public sealed class LprMigrationTests(SqlFixture database) : IClassFixture<SqlFi
         Assert.Empty(await db.LprEvents.ToArrayAsync());
         Assert.Empty(await db.Set<OpenIddictEntityFrameworkCoreApplication>().ToArrayAsync());
         var migrator = db.GetService<IMigrator>();
+        Assert.Empty(await db.VehicleStayPartitions.ToArrayAsync());
+        await db.StayConfiguration.ExecuteDeleteAsync();
+        await db.StayPolicies.ExecuteDeleteAsync();
         await migrator.MigrateAsync("20261029161807_WorkshopAssignments");
         var actor = Guid.NewGuid();
         var target = Guid.NewGuid();
@@ -89,6 +92,8 @@ public sealed class LprPersistenceTests(SqlFixture database) : IClassFixture<Sql
             provider.GetRequiredService<ILprDeviceRepository>().Add(device);
             provider.GetRequiredService<IDeviceAdministrationAuditRepository>().Add(new(Guid.NewGuid(), seed.Actor,
                 DeviceAdministrationOperation.Created, null, device.Snapshot(), Instant, "synthetic"));
+            Assert.Equal(LprEventComparison.Missing, (await provider.GetRequiredService<ILprEventRepository>().CompareAsync(
+                new(eventId, device.Id, seed.Site, Instant, "0000-bbb", 0.12345678m, LprDirection.Entry), ct)).Comparison);
             provider.GetRequiredService<ILprEventRepository>().Add(new LprEvent(eventId, device.Id, seed.Site,
                 Instant, Instant.AddTicks(1), "0000-bbb", 0.12345678m, LprDirection.Entry));
             var clock = await provider.GetRequiredService<ILprClock>().GetUtcNowAsync(ct);

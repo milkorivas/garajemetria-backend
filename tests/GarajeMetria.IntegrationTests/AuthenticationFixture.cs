@@ -45,6 +45,21 @@ public sealed class SqlFixture : IAsyncLifetime
         ConnectionString = connection.ConnectionString;
         await using var db = CreateContext();
         await db.Database.MigrateAsync();
+        // Explicit isolated fixture preparation, never application startup/production seeding.
+        var stayOptions = new GarajeMetria.Infrastructure.Stays.StayOptions();
+        var snapshot = stayOptions.CreateSnapshot(Guid.NewGuid());
+        db.StayPolicies.Add(new()
+        {
+            Id = snapshot.Id,
+            Fingerprint = GarajeMetria.Infrastructure.Stays.StayOptions.Fingerprint(snapshot),
+            EstimatedDurationTicks = snapshot.EstimatedDuration.Ticks,
+            RepeatWindowTicks = snapshot.RepeatWindow.Ticks,
+            MaximumAssociationTicks = snapshot.MaximumAssociationDuration.Ticks,
+            TimeZoneId = snapshot.TimeZoneId,
+            AlgorithmVersion = snapshot.AlgorithmVersion
+        });
+        db.StayConfiguration.Add(new() { Id = 1, ActivePolicyId = snapshot.Id, Version = Guid.NewGuid(), ActivatedAt = DateTimeOffset.UtcNow });
+        await db.SaveChangesAsync();
     }
 
     public AuthenticationDbContext CreateContext() => new(new DbContextOptionsBuilder<AuthenticationDbContext>()

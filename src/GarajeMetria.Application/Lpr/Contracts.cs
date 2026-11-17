@@ -41,7 +41,12 @@ public interface IDeviceAdministrationAuditRepository
 }
 
 public sealed record DeviceDto(Guid Id, string Name, string WorkshopId, bool IsActive, bool HasCredentials,
-    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, Guid Version);
+    DateTimeOffset CreatedAt, DateTimeOffset UpdatedAt, Guid Version)
+{
+    public string? LocationDescription { get; init; }
+    public DateTimeOffset? LocationRecordedAt { get; init; }
+    public override string ToString() => nameof(DeviceDto);
+}
 public sealed record DevicePage(IReadOnlyList<DeviceDto> Items, int PageNumber, int PageSize, int TotalCount);
 public interface ILprDeviceAdministrationQuery
 {

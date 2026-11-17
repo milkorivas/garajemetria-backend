@@ -19,7 +19,16 @@ public abstract record LprRequest<T> : IRequest<Outcome<T>>, IFailureResponseReq
 }
 
 public sealed record RegisterDeviceCommand(string Name, string WorkshopId)
-    : LprRequest<DeviceProvisioningResult>, ILprAdministrationRequest;
+    : LprRequest<DeviceProvisioningResult>, ILprAdministrationRequest
+{
+    public string? LocationDescription { get; init; }
+    public override string ToString() => nameof(RegisterDeviceCommand);
+}
+public sealed record UpdateDeviceLocationCommand(Guid DeviceId, string LocationDescription, Guid ExpectedVersion)
+    : LprRequest<DeviceMutationResult>, ILprAdministrationRequest
+{
+    public override string ToString() => nameof(UpdateDeviceLocationCommand);
+}
 public sealed record RenameDeviceCommand(Guid DeviceId, string Name, Guid ExpectedVersion)
     : LprRequest<DeviceMutationResult>, ILprAdministrationRequest;
 public sealed record DeactivateDeviceCommand(Guid DeviceId, Guid ExpectedVersion)

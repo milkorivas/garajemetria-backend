@@ -80,8 +80,13 @@ public sealed class LprOpenApi : IOpenApiOperationTransformer
             {
                 var properties = new Dictionary<string, IOpenApiSchema> { ["name"] = new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 1, MaxLength = 128 } };
                 if (name == "RegisterLprDevice") properties["workshopId"] = new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 1, MaxLength = 256 };
-                operation.RequestBody = Body("application/json", properties, properties.Keys.ToHashSet());
+                var required = properties.Keys.ToHashSet();
+                if (name == "RegisterLprDevice") properties["locationDescription"] = new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 1, MaxLength = 256 };
+                operation.RequestBody = Body("application/json", properties, required);
             }
+            if (name == "UpdateLprDeviceLocation")
+                operation.RequestBody = Body("application/json", new Dictionary<string, IOpenApiSchema>
+                { ["locationDescription"] = new OpenApiSchema { Type = JsonSchemaType.String, MinLength = 1, MaxLength = 256 } }, ["locationDescription"]);
             if (name is not ("ListLprDevices" or "GetLprDevice" or "RegisterLprDevice"))
                 operation.Parameters.Add(new OpenApiParameter
                 {

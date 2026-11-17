@@ -68,8 +68,17 @@ internal sealed class LprRepository(AuthenticationDbContext db) : ILprDeviceRepo
     // Stable store key, distinct from the public client_id (lpr_<UUID>). The credential adapter must use this ID.
     internal static string ApplicationId(Guid deviceId) => deviceId.ToString("N");
 
-    public Task<LprDevice?> FindAsync(Guid deviceId, CancellationToken cancellationToken) =>
-        db.LprDevices.AsNoTracking().SingleOrDefaultAsync(x => x.Id == deviceId, cancellationToken);
+    public async Task<LprDevice?> FindAsync(Guid deviceId, CancellationToken cancellationToken)
+    {
+        var device = await db.LprDevices.AsNoTracking().SingleOrDefaultAsync(x => x.Id == deviceId, cancellationToken);
+        if (device?.CurrentLocationId is { } locationId)
+        {
+            var row = await db.LprDeviceLocations.AsNoTracking().SingleAsync(x => x.Id == locationId &&
+                x.DeviceId == deviceId && x.WorkshopId == device.WorkshopId, cancellationToken);
+            device.RestoreLocation(new(row.Id, row.DeviceId, row.WorkshopId, row.Description, row.RecordedAt, row.CreationOrder));
+        }
+        return device;
+    }
 
     public void Add(LprDevice device)
     {
@@ -83,12 +92,41 @@ internal sealed class LprRepository(AuthenticationDbContext db) : ILprDeviceRepo
         return SaveCoreAsync(device, expectedVersion, cancellationToken);
     }
 
-    private async Task<bool> SaveCoreAsync(LprDevice device, Guid expectedVersion, CancellationToken cancellationToken) =>
-        await db.LprDevices.Where(x => x.Id == device.Id && x.WorkshopId == device.WorkshopId && x.Version == expectedVersion)
+    private async Task<bool> SaveCoreAsync(LprDevice device, Guid expectedVersion, CancellationToken cancellationToken)
+    {
+        var entry = db.Entry(device);
+        if (entry.State == EntityState.Added)
+        {
+            // Break only the insertion cycle; both phases remain invisible outside the outer transaction.
+            var locationId = device.CurrentLocationId;
+            var version = device.Version;
+            entry.Property(x => x.CurrentLocationId).CurrentValue = null;
+            entry.Property(x => x.Version).CurrentValue = expectedVersion;
+            await db.SaveChangesAsync(cancellationToken);
+            entry.State = EntityState.Detached;
+            entry.Property(x => x.CurrentLocationId).CurrentValue = locationId;
+            entry.Property(x => x.Version).CurrentValue = version;
+        }
+        else if (entry.State != EntityState.Detached) entry.State = EntityState.Detached;
+        if (device.Location is { } location && !await db.LprDeviceLocations.AnyAsync(x => x.Id == location.Id, cancellationToken))
+        {
+            db.LprDeviceLocations.Add(new()
+            {
+                Id = location.Id,
+                DeviceId = location.DeviceId,
+                WorkshopId = location.WorkshopId,
+                Description = location.Description,
+                RecordedAt = location.RecordedAt,
+                CreationOrder = location.CreationOrder
+            });
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        return await db.LprDevices.Where(x => x.Id == device.Id && x.WorkshopId == device.WorkshopId && x.Version == expectedVersion)
             .ExecuteUpdateAsync(set => set.SetProperty(x => x.Name, device.Name)
                 .SetProperty(x => x.IsActive, device.IsActive).SetProperty(x => x.HasCredentials, device.HasCredentials)
                 .SetProperty(x => x.Version, device.Version).SetProperty(x => x.AuthorizationVersion, device.AuthorizationVersion)
-                .SetProperty(x => x.UpdatedAt, device.UpdatedAt), cancellationToken) == 1;
+                .SetProperty(x => x.UpdatedAt, device.UpdatedAt).SetProperty(x => x.CurrentLocationId, device.CurrentLocationId), cancellationToken) == 1;
+    }
 
     public void Add(LprEvent observation)
     {
@@ -152,14 +190,22 @@ internal sealed class LprRepository(AuthenticationDbContext db) : ILprDeviceRepo
         if (isActive is not null) query = query.Where(x => x.IsActive == isActive);
         var count = await query.CountAsync(cancellationToken);
         var items = await query.OrderBy(x => x.Id).Skip((pageNumber - 1) * pageSize).Take(pageSize)
-            .Select(x => new DeviceDto(x.Id, x.Name, x.WorkshopId, x.IsActive, x.HasCredentials, x.CreatedAt, x.UpdatedAt, x.Version))
+            .Select(x => new DeviceDto(x.Id, x.Name, x.WorkshopId, x.IsActive, x.HasCredentials, x.CreatedAt, x.UpdatedAt, x.Version)
+            {
+                LocationDescription = db.LprDeviceLocations.Where(l => l.Id == x.CurrentLocationId).Select(l => l.Description).FirstOrDefault(),
+                LocationRecordedAt = db.LprDeviceLocations.Where(l => l.Id == x.CurrentLocationId).Select(l => (DateTimeOffset?)l.RecordedAt).FirstOrDefault()
+            })
             .ToArrayAsync(cancellationToken);
         return new(items, pageNumber, pageSize, count);
     }
 
     Task<DeviceDto?> ILprDeviceAdministrationQuery.FindAsync(Guid deviceId, CancellationToken cancellationToken) =>
         db.LprDevices.AsNoTracking().Where(x => x.Id == deviceId)
-            .Select(x => new DeviceDto(x.Id, x.Name, x.WorkshopId, x.IsActive, x.HasCredentials, x.CreatedAt, x.UpdatedAt, x.Version))
+            .Select(x => new DeviceDto(x.Id, x.Name, x.WorkshopId, x.IsActive, x.HasCredentials, x.CreatedAt, x.UpdatedAt, x.Version)
+            {
+                LocationDescription = db.LprDeviceLocations.Where(l => l.Id == x.CurrentLocationId).Select(l => l.Description).FirstOrDefault(),
+                LocationRecordedAt = db.LprDeviceLocations.Where(l => l.Id == x.CurrentLocationId).Select(l => (DateTimeOffset?)l.RecordedAt).FirstOrDefault()
+            })
             .SingleOrDefaultAsync(cancellationToken);
 
     Task<DeviceAuthorizationState?> IDeviceAuthorizationQuery.FindAsync(Guid deviceId, CancellationToken cancellationToken) =>

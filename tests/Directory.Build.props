@@ -13,4 +13,7 @@
     </PackageReference>
     <Using Include="Xunit" />
   </ItemGroup>
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'GarajeMetria.ArchitectureTests'">
+    <Compile Include="../Shared/StayTestData.cs" Link="Fixtures/StayTestData.cs" />
+  </ItemGroup>
 </Project>

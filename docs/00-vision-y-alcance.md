@@ -269,23 +269,31 @@ administrativos y LPR aún no están implementados. Consultar el
 
 - Una lectura LPR es una observación. No determina por sí sola una entrada,
   salida o estancia: debe interpretarse según las reglas de negocio.
-- Cuando la cámara aporte la dirección del movimiento, se utilizará esa
-  información. Cuando no la aporte, el backend deberá determinar si se trata de
-  una entrada o una salida usando la primera lectura como entrada y la última
-  como salida, agrupando las lecturas por vehículo, taller y día. La salida
-  corresponde a la última lectura de ese vehículo en ese taller durante ese día.
-- En esta primera versión, cuando ese grupo contenga una sola lectura, se
-  asignará una duración de estancia de X minutos. X se establece en un archivo
-  de configuración, sin un valor fijo en el código. Esta duración es una
-  estimación; no representa una salida observada por la cámara. La entrada
-  corresponde al instante de captura de esa lectura y la salida estimada se
-  calcula sumando X minutos a dicho instante.
-- El día de agrupación se determina a partir de la fecha de captura de cada
-  lectura en la zona horaria del taller, no de su fecha de recepción. Los
-  instantes se conservan en UTC.
-- Quedan por definir el tratamiento de eventos tardíos y del día todavía en
-  curso. No se infieren visitas individuales
-  adicionales a partir de las lecturas intermedias sin una regla acordada.
+- [RF-004](requirements/RF-004-arrivals-departures-and-stays.md) define varias
+  estancias por vehículo y taller cuando las direcciones permiten emparejar
+  visitas, incluso atravesando medianoche. Las cámaras del mismo taller se
+  interpretan conjuntamente; los talleres mantienen cálculos independientes.
+- Se utilizan todas las lecturas elegibles, priorizando las direcciones
+  explícitas. Las lecturas sin dirección se asocian al movimiento más cercano
+  y, ante empate, al anterior; pueden ampliar los extremos. Sin ninguna
+  dirección, se mantiene una estancia diaria de primera a última lectura.
+- Durante el día, una entrada aislada permanece abierta y una salida sin entrada
+  queda pendiente. Al cierre se infieren extremos con las lecturas disponibles
+  o se estima salida igual a entrada más X, o entrada igual a salida menos X.
+  X es configurable y común para todos los talleres, inicialmente 30 minutos.
+  Las estimaciones se distinguen de las observaciones físicas.
+- El día local y su cierre utilizan `Atlantic/Canary` y la fecha de captura,
+  no la de recepción; los instantes se conservan en UTC. Una salida real puede
+  reemplazar una virtual o inferida conforme a RF-004 dentro de un máximo
+  configurable, inicialmente 48 horas desde la entrada.
+- Las repeticiones se interpretan dentro de un intervalo configurable común,
+  inicialmente 1 minuto desde la primera lectura, incluido el límite, sin
+  suprimir entradas y salidas explícitas opuestas. Todas las observaciones
+  permanecen registradas, participen o no en la estancia final.
+- Los eventos tardíos aceptados recalculan automáticamente las estancias y
+  sus asociaciones. Al confirmar la recepción deben estar persistidos sus
+  efectos. Cada estancia conserva la configuración fijada al crearla, también
+  en ampliaciones y recálculos; cambiar parámetros no modifica el historial.
 - RF-003 define un evento JSON por petición, con UUID conservado en reintentos,
   dispositivo y taller autorizados. Confirma duplicados idénticos sin duplicar
   efectos y rechaza cambios para el mismo UUID. Los eventos nuevos admiten
@@ -299,9 +307,11 @@ administrativos y LPR aún no están implementados. Consultar el
   aplicará cuando corresponda.
 - RF-003 conserva matrículas españolas actuales, antiguas y especiales:
   normaliza mayúsculas y separadores sin perder ceros ni corregir caracteres.
-  Las lecturas de formato inválido se conservan marcadas como tales, así como
-  las de baja confianza válida. La asociación de lecturas y el cálculo de
-  estancias, incluido el uso de lecturas inválidas, se concretarán en RF-004.
+  Las lecturas de formato inválido se conservan marcadas como tales y se excluyen
+  del cálculo de estancias. Todas las de formato válido participan sin umbral
+  de confianza. RF-005 deberá permitir consultar el rastro completo, incluidas
+  las inválidas por texto y dispositivo. RF-004 incorpora una ubicación
+  descriptiva por dispositivo para reconstruir los puntos de observación.
 - Solo el Administrador puede realizar correcciones manuales, que deben conservar su trazabilidad:
   quién realizó el cambio, cuándo y cuáles fueron los datos anteriores y
   posteriores. Los campos corregibles y el efecto sobre las estancias están
@@ -371,17 +381,16 @@ corresponde al sistema externo. Detalles y contrato de origen pendiente en
    propios de cada funcionalidad en su requerimiento. Roles, primer acceso y
    mantenimiento del taller ya están definidos en RF-002; solo los
    Administradores pueden mantener las asignaciones.
-2. **Significado de eventos:** RF-003 define la recepción independiente del
-   fabricante, las credenciales por dispositivo, los datos, reintentos y límites
-   temporales. RF-004 concretará la zona horaria de cada taller y el tratamiento
-   de direcciones inconsistentes y lecturas inválidas. El agrupamiento por
-   vehículo, taller y día utiliza la fecha de captura en la zona horaria del
-   taller; primera lectura como entrada y última del día como salida.
-3. **Estancias e incidencias:** tratamiento de lecturas repetidas, movimientos
-   incompletos y eventos tardíos; campos corregibles y efecto de las correcciones
-   sobre las estancias y los informes. Para una lectura única está acordada una
-   duración configurable de X minutos y una salida estimada en el instante de
-   captura más X minutos; falta concretar el tratamiento del día todavía en curso.
+2. **Significado de eventos y estancias:** RF-003 define recepción y límites
+   temporales; RF-004 ya define emparejamiento, medianoche, repeticiones,
+   estimaciones y recálculo. DESIGN-004 concreta persistencia, transacciones,
+   cierre diario y ubicación histórica. Las decisiones de DESIGN-004 / 14
+   quedaron resueltas el 17 de noviembre de 2026; su implementación y
+   verificación automatizada siguen pendientes.
+3. **Consultas y correcciones:** RF-005 concretará las consultas del historial
+   y de todas las observaciones conservadas. RF-006 definirá campos corregibles
+   y operaciones manuales con auditoría, conservando originales y recalculando
+   estancias afectadas; queda por definir su efecto sobre los informes.
 4. **Primera versión:** consultas, operaciones administrativas e indicadores
    imprescindibles. Las exportaciones, las notificaciones y las integraciones
    adicionales a AD, LPR y RF-009 quedan fuera del alcance.

@@ -29,6 +29,28 @@ public sealed class LprDevice
     public Guid AuthorizationVersion { get; private set; }
     public DateTimeOffset CreatedAt { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
+    public Guid? CurrentLocationId { get; private set; }
+    public LprDeviceLocation? Location { get; private set; }
+
+    public void RestoreLocation(LprDeviceLocation? location)
+    {
+        if (location?.Id != CurrentLocationId || location is not null && (location.DeviceId != Id || location.WorkshopId != WorkshopId))
+            throw new ArgumentException("Location does not belong to the device.");
+        Location = location;
+    }
+
+    public bool ChangeLocation(string description, DateTimeOffset changedAt)
+    {
+        ArgumentNullException.ThrowIfNull(description);
+        var next = new LprDeviceLocation(Guid.NewGuid(), Id, WorkshopId, description, changedAt,
+            checked((Location?.CreationOrder ?? 0) + 1));
+        if (Location?.Description == next.Description) return false;
+        if (changedAt < UpdatedAt) throw new ArgumentException("A device change cannot move backwards.");
+        Location = next;
+        CurrentLocationId = next.Id;
+        Change(changedAt, false);
+        return true;
+    }
 
     public bool Rename(string name, DateTimeOffset changedAt)
     {
@@ -84,7 +106,8 @@ public sealed class LprDevice
     }
 
     public DeviceAdministrationSnapshot Snapshot() => new(Id, WorkshopId, Name, IsActive,
-        HasCredentials, Version, AuthorizationVersion, CreatedAt, UpdatedAt);
+        HasCredentials, Version, AuthorizationVersion, CreatedAt, UpdatedAt)
+    { LocationId = Location?.Id, LocationDescription = Location?.Description, LocationRecordedAt = Location?.RecordedAt };
 
     private void Change(DateTimeOffset changedAt, bool invalidateAuthorization)
     {

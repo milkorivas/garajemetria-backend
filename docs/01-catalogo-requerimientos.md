@@ -18,11 +18,23 @@ Para RF-002, consultar
 [DESIGN-002 — Roles y acceso a talleres](design/DESIGN-002-roles-and-workshop-access.md).
 Para RF-003, consultar
 [DESIGN-003 — Recepción de eventos LPR](design/DESIGN-003-lpr-event-ingestion.md).
+Para RF-004, consultar
+[DESIGN-004 — Entradas, salidas y estancias](design/DESIGN-004-arrivals-departures-and-stays.md),
+con decisiones P004-01 a P004-03 resueltas y backend de cálculo integrado.
+Las evidencias y límites se registran en TASKS-004 / 18 y 19.
 
 Los planes de implementación se mantienen en `tasks/`:
 [TASKS-001 — Autenticación](tasks/TASKS-001-authentication.md),
-[TASKS-002 — Roles y acceso a talleres](tasks/TASKS-002-roles-and-workshop-access.md) y
-[TASKS-003 — Recepción de eventos LPR](tasks/TASKS-003-lpr-event-ingestion.md).
+[TASKS-002 — Roles y acceso a talleres](tasks/TASKS-002-roles-and-workshop-access.md),
+[TASKS-003 — Recepción de eventos LPR](tasks/TASKS-003-lpr-event-ingestion.md) y
+[TASKS-004 — Entradas, salidas y estancias](tasks/TASKS-004-arrivals-departures-and-stays.md).
+TASKS-004 contiene 24 tareas y trazabilidad de los 27 CA/CP. El backend integra
+dominio puro, recálculo incremental, políticas históricas, SQL transaccional,
+ubicación auditable, ingesta síncrona, cierre supervisado y mantenimiento
+reanudable. La consulta HTTP completa del rastro y sus permisos se concretarán
+en RF-005; las correcciones, en RF-006. No se ha desplegado ni activado en un
+entorno compartido; los ensayos usan datos sintéticos y SQL Server aislado.
+
 Los requisitos definen qué construir, los diseños cómo hacerlo y las tareas
 el trabajo pendiente con sus dependencias y verificaciones. Los contratos
 técnicos de autenticación de usuarios tienen una sola fuente: DESIGN-001; RF-001 mantiene
@@ -97,7 +109,7 @@ correspondientes. El primer tramo acordado es RF-001, autenticación.
 | RF-001 | Autenticación | Alta | Definido | [RF-001-authentication.md](requirements/RF-001-authentication.md) |
 | RF-002 | Roles y acceso a talleres | Por definir | Definido | [RF-002-roles-and-workshop-access.md](requirements/RF-002-roles-and-workshop-access.md) |
 | RF-003 | Recepción de eventos LPR | Por definir | Definido | [RF-003-lpr-event-ingestion.md](requirements/RF-003-lpr-event-ingestion.md) |
-| RF-004 | Entradas, salidas y estancias | Por definir | En definición | `requirements/RF-004-arrivals-departures-and-stays.md` |
+| RF-004 | Entradas, salidas y estancias | Alta | Backend implementado; límites y evidencias en TASKS-004 | [RF-004-arrivals-departures-and-stays.md](requirements/RF-004-arrivals-departures-and-stays.md) |
 | RF-005 | Consulta de vehículos e historial | Por definir | En definición | `requirements/RF-005-vehicle-history-and-search.md` |
 | RF-006 | Correcciones manuales y auditoría | Por definir | En definición | `requirements/RF-006-manual-corrections-and-audit.md` |
 | RF-007 | Almacenamiento y consulta de imágenes | Por definir | En definición | `requirements/RF-007-images.md` |

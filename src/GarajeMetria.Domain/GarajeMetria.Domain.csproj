@@ -1,1 +1,6 @@
-<Project Sdk="Microsoft.NET.Sdk" />
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <!-- Isolated integration fixtures can construct historical change sets without a production import API. -->
+    <InternalsVisibleTo Include="GarajeMetria.IntegrationTests" />
+  </ItemGroup>
+</Project>

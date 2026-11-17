@@ -28,15 +28,22 @@ internal static class SqlTransactions
         IDbContextTransaction? transaction = null;
         var committing = false;
         var failed = false;
+        var outcomeFailed = false;
+        long? catalogAcquired = null;
         try
         {
             transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
-            await LockAsync(db, resource, cancellationToken, lockTimeoutMilliseconds);
+            var waitStarted = Stopwatch.GetTimestamp();
+            try { await LockAsync(db, resource, cancellationToken, lockTimeoutMilliseconds); }
+            finally { if (resource == "workshops:catalog") Stays.StayTelemetry.CatalogWaited(Stopwatch.GetElapsedTime(waitStarted)); }
+            if (resource == "workshops:catalog") catalogAcquired = Stopwatch.GetTimestamp();
             db.ChangeTracker.Clear();
             var result = await action(cancellationToken);
             if (rollbackFailedOutcomes && result is IOutcome { Succeeded: false })
             {
+                outcomeFailed = true;
                 await transaction.RollbackAsync(cancellationToken);
+                Stays.StayTelemetry.RolledBack();
                 db.ChangeTracker.Clear();
                 return result;
             }
@@ -51,7 +58,7 @@ internal static class SqlTransactions
             var rollbackConfirmed = false;
             if (transaction is not null && !committing)
             {
-                try { await transaction.RollbackAsync(CancellationToken.None); rollbackConfirmed = true; }
+                try { await transaction.RollbackAsync(CancellationToken.None); rollbackConfirmed = true; Stays.StayTelemetry.RolledBack(); }
                 catch (Exception rollbackError) when (rollbackError is SqlException or InvalidOperationException)
                 {
                     logger.LogSafeException(LogLevel.Error, "Persistence.Rollback", rollbackError,
@@ -65,6 +72,7 @@ internal static class SqlTransactions
         }
         finally
         {
+            if (catalogAcquired is { } acquired) Stays.StayTelemetry.CatalogReleased(Stopwatch.GetElapsedTime(acquired), failed || outcomeFailed);
             if (transaction is not null)
             {
                 try { await transaction.DisposeAsync(); }

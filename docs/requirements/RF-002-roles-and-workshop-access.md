@@ -2,7 +2,7 @@
 
 | ID | Requerimiento | Prioridad | Estado |
 | --- | --- | --- | --- |
-| RF-002 | Roles y acceso a talleres | Por definir | Implementado; verificación AD aislado pendiente |
+| RF-002 | Roles y acceso a talleres | Alta | Implementado; verificación AD aislado pendiente |
 
 ## 1. Objetivo
 

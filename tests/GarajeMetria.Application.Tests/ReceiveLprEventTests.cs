@@ -1,11 +1,31 @@
 using GarajeMetria.Application.Authentication;
 using GarajeMetria.Application.Lpr;
+using GarajeMetria.Application.Stays;
 using GarajeMetria.Domain.Lpr;
+using GarajeMetria.Domain.Stays;
 
 namespace GarajeMetria.Application.Tests;
 
 public sealed class ReceiveLprEventTests
 {
+    [Fact]
+    public async Task ValidNewObservationIsSuppliedToSynchronousCalculationInsideTheSameTransaction()
+    {
+        var state = new State();
+        var result = await state.Handler().Handle(state.Request with { PlateOriginal = "1234BCD" }, default);
+        Assert.True(result.Succeeded);
+        Assert.Equal(1, state.LocationWrites);
+        Assert.Equal(1, state.Calculations);
+    }
+
+    [Fact]
+    public async Task InvalidNewObservationRecordsLocationWithoutCreatingAStayPartition()
+    {
+        var state = new State();
+        Assert.True((await state.Handler().Handle(state.Request, default)).Succeeded);
+        Assert.Equal(1, state.LocationWrites);
+        Assert.Equal(0, state.Calculations);
+    }
     [Theory]
     [InlineData(-30, true)]
     [InlineData(30, true)]
@@ -120,7 +140,8 @@ public sealed class ReceiveLprEventTests
         Assert.Equal(1, state.Transactions);
     }
 
-    private sealed class State : ICurrentDeviceContext, IDeviceAuthorizationQuery, ILprClock, ILprEventRepository, ILprUnitOfWork
+    private sealed class State : ICurrentDeviceContext, IDeviceAuthorizationQuery, ILprClock, ILprEventRepository, ILprUnitOfWork,
+        IStayRepository, IStayRecalculationService, IObservationLocationWriter
     {
         public DateTimeOffset Now { get; private set; } = new(2026, 11, 13, 10, 0, 0, TimeSpan.Zero);
         public ReceiveLprEventCommand Request { get; }
@@ -138,6 +159,8 @@ public sealed class ReceiveLprEventTests
         public int Transactions { get; private set; }
         public int ClockReads { get; private set; }
         private bool inside;
+        public int LocationWrites { get; private set; }
+        public int Calculations { get; private set; }
         public State()
         {
             var id = Guid.NewGuid();
@@ -146,7 +169,19 @@ public sealed class ReceiveLprEventTests
             Device = new(id, "site", version, Now.AddMinutes(1), true);
             Authorization = new(id, "site", true, true, version, true, true);
         }
-        public ReceiveLprEventHandler Handler() => new(this, this, new(this, this, this), new());
+        public ReceiveLprEventHandler Handler() => new(this, this, new(this, this, this), new(), this, this, this);
+        public Task CaptureAsync(StayObservation observation, CancellationToken ct)
+        { Assert.True(inside); Assert.Equal(Added!.EventId, observation.EventId); LocationWrites++; return Task.CompletedTask; }
+        public Task<StayPartition> GetOrCreatePartitionAsync(string workshop, string plate, CancellationToken ct)
+        { Assert.True(inside); Assert.Equal("valid", Added!.PlateStatus); return Task.FromResult(new StayPartition(Guid.NewGuid(), workshop, plate, 0, 0, 0, null)); }
+        public Task<StayPartition> RegisterInputAsync(Guid partition, Guid eventId, long revision, CancellationToken ct)
+        { Assert.True(inside); Assert.Equal(Added!.EventId, eventId); return Task.FromResult(new StayPartition(partition, Added.WorkshopId, Added.PlateNormalized, 1, 0, 0, null)); }
+        public Task<StayRecalculationResult> RecalculateAsync(StayPartition partition, DateTimeOffset seed, DateTimeOffset now,
+            StayProjectionCause cause, StayObservation? pending, CancellationToken ct)
+        { Assert.True(inside); Assert.Equal(StayObservation.FromEvent(Added!), pending); Assert.Equal(Now, now); Calculations++; return Task.FromResult(new StayRecalculationResult(1, 1, true)); }
+        public Task<StayPartition?> FindPartitionAsync(Guid id, CancellationToken ct) => throw new InvalidOperationException();
+        public Task<StayProjectionPage> ReadContextAsync(StayReadWindow window, long? after, CancellationToken ct) => throw new InvalidOperationException();
+        public Task<StayProjectionWriteResult> ApplyAsync(StayProjectionWrite write, CancellationToken ct) => throw new InvalidOperationException();
         public Task<DeviceAuthorizationState?> FindAsync(Guid id, CancellationToken ct)
         { Assert.True(inside); if (AdvanceDuringRead) Now = Now.AddMinutes(1); return Task.FromResult<DeviceAuthorizationState?>(Authorization); }
         public Task<DateTimeOffset> GetUtcNowAsync(CancellationToken ct)

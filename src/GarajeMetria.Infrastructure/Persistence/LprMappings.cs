@@ -20,6 +20,7 @@ public sealed class LprEventRow
     public string PlateRulesVersion { get; set; } = "";
     public decimal Confidence { get; set; }
     public LprDirection? Direction { get; set; }
+    public byte[] EventOrderKey { get; private set; } = [];
     public override string ToString() => nameof(LprEventRow);
 }
 
@@ -47,6 +48,7 @@ internal sealed class LprDeviceMapping : IEntityTypeConfiguration<LprDevice>
             t.HasCheckConstraint("CK_LprDevice_Utc", "DATEPART(TZOFFSET,[CreatedAt]) = 0 AND DATEPART(TZOFFSET,[UpdatedAt]) = 0");
         });
         b.HasKey(x => x.Id);
+        b.Ignore(x => x.Location);
         b.Property(x => x.Id).ValueGeneratedNever();
         b.Property(x => x.WorkshopId).HasMaxLength(256).IsRequired();
         b.Property(x => x.Name).HasMaxLength(128).IsRequired();
@@ -59,6 +61,9 @@ internal sealed class LprDeviceMapping : IEntityTypeConfiguration<LprDevice>
         b.HasIndex("OAuthApplicationId").IsUnique();
         b.HasOne<OpenIddictEntityFrameworkCoreApplication>().WithOne().HasForeignKey<LprDevice>("OAuthApplicationId").OnDelete(DeleteBehavior.Restrict);
         b.HasOne<WorkshopAccess>().WithMany().HasForeignKey(x => x.WorkshopId).OnDelete(DeleteBehavior.Restrict);
+        b.Property<Guid?>("CurrentLocationId");
+        b.HasOne<LprDeviceLocationRow>().WithMany().HasForeignKey("CurrentLocationId", "Id", "WorkshopId")
+            .HasPrincipalKey(x => new { x.Id, x.DeviceId, x.WorkshopId }).OnDelete(DeleteBehavior.Restrict);
     }
 }
 
@@ -76,6 +81,11 @@ internal sealed class LprEventMapping : IEntityTypeConfiguration<LprEventRow>
         });
         b.HasKey(x => x.EventId);
         b.Property(x => x.EventId).ValueGeneratedNever();
+        b.HasAlternateKey(x => new { x.EventId, x.DeviceId, x.WorkshopId });
+        b.HasAlternateKey(x => new { x.EventId, x.WorkshopId, x.PlateNormalized });
+        // Text UUID hex is in network order; SQL Server's native uniqueidentifier binary/sort order is not.
+        b.Property(x => x.EventOrderKey).HasColumnType("binary(16)")
+            .HasComputedColumnSql("CONVERT(binary(16), REPLACE(CONVERT(char(36), [EventId]), '-', ''), 2)", stored: true);
         b.Property(x => x.WorkshopId).HasMaxLength(256).IsRequired();
         b.Property(x => x.CapturedAt).HasPrecision(7);
         b.Property(x => x.ReceivedAt).HasPrecision(7);
@@ -89,6 +99,7 @@ internal sealed class LprEventMapping : IEntityTypeConfiguration<LprEventRow>
             x => x == LprDirection.Entry ? "entry" : "exit", x => x == "entry" ? LprDirection.Entry : LprDirection.Exit);
         b.HasIndex(x => new { x.WorkshopId, x.CapturedAt, x.EventId });
         b.HasIndex(x => new { x.DeviceId, x.CapturedAt, x.EventId });
+        b.HasIndex(x => new { x.WorkshopId, x.PlateNormalized, x.CapturedAt, x.EventOrderKey });
         b.HasOne<LprDevice>().WithMany().HasForeignKey(x => new { x.DeviceId, x.WorkshopId })
             .HasPrincipalKey(x => new { x.Id, x.WorkshopId }).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<WorkshopAccess>().WithMany().HasForeignKey(x => x.WorkshopId).OnDelete(DeleteBehavior.Restrict);
@@ -101,7 +112,9 @@ internal sealed class DeviceAdministrationAuditMapping : IEntityTypeConfiguratio
     {
         b.ToTable("DeviceAdministrationAudits", t =>
         {
-            t.HasCheckConstraint("CK_DeviceAudit_Operation", "[Operation] IN ('Created','Renamed','Deactivated','Reactivated','CredentialsRotated','CredentialsRevoked')");
+            t.HasCheckConstraint("CK_DeviceAudit_Operation", "[Operation] IN ('Created','Renamed','Deactivated','Reactivated','CredentialsRotated','CredentialsRevoked','LocationChanged')");
+            t.HasCheckConstraint("CK_DeviceAudit_Location", "([CurrentLocationId] IS NULL AND [CurrentLocationDescription] IS NULL AND [CurrentLocationRecordedAt] IS NULL OR [CurrentLocationId] IS NOT NULL AND [CurrentLocationDescription] IS NOT NULL AND LEN(LTRIM(RTRIM([CurrentLocationDescription]))) > 0 AND [CurrentLocationRecordedAt] IS NOT NULL AND DATEPART(TZOFFSET,[CurrentLocationRecordedAt]) = 0) AND ([PreviousLocationId] IS NULL AND [PreviousLocationDescription] IS NULL AND [PreviousLocationRecordedAt] IS NULL OR [PreviousLocationId] IS NOT NULL AND [PreviousLocationDescription] IS NOT NULL AND LEN(LTRIM(RTRIM([PreviousLocationDescription]))) > 0 AND [PreviousLocationRecordedAt] IS NOT NULL AND DATEPART(TZOFFSET,[PreviousLocationRecordedAt]) = 0)");
+            t.HasCheckConstraint("CK_DeviceAudit_LocationChanged", "[Operation] <> 'LocationChanged' OR ([CurrentLocationId] IS NOT NULL AND ([PreviousLocationId] IS NULL OR [CurrentLocationId] <> [PreviousLocationId]) AND [CurrentAuthorizationVersion] = [PreviousAuthorizationVersion] AND [CurrentName] = [PreviousName] AND [CurrentIsActive] = [PreviousIsActive] AND [CurrentHasCredentials] = [PreviousHasCredentials])");
             t.HasCheckConstraint("CK_DeviceAudit_Snapshot", "[CurrentDeviceId] = [DeviceId] AND [CurrentUpdatedAt] = [OccurredAt] AND (([Operation] = 'Created' AND [PreviousDeviceId] IS NULL) OR ([Operation] <> 'Created' AND [PreviousDeviceId] IS NOT NULL AND [PreviousVersion] IS NOT NULL AND [PreviousAuthorizationVersion] IS NOT NULL AND [PreviousWorkshopId] IS NOT NULL AND [PreviousName] IS NOT NULL AND [PreviousIsActive] IS NOT NULL AND [PreviousHasCredentials] IS NOT NULL AND [PreviousCreatedAt] IS NOT NULL AND [PreviousUpdatedAt] IS NOT NULL AND [PreviousDeviceId] = [DeviceId] AND [PreviousVersion] <> [CurrentVersion] AND [PreviousWorkshopId] = [CurrentWorkshopId]))");
             t.HasCheckConstraint("CK_DeviceAudit_Utc", "DATEPART(TZOFFSET,[OccurredAt]) = 0 AND DATEPART(TZOFFSET,[CurrentCreatedAt]) = 0 AND DATEPART(TZOFFSET,[CurrentUpdatedAt]) = 0 AND ([PreviousDeviceId] IS NULL OR (DATEPART(TZOFFSET,[PreviousCreatedAt]) = 0 AND DATEPART(TZOFFSET,[PreviousUpdatedAt]) = 0))");
         });
@@ -130,5 +143,8 @@ internal sealed class DeviceAdministrationAuditMapping : IEntityTypeConfiguratio
         b.Property(x => x.AuthorizationVersion).HasColumnName(prefix + "AuthorizationVersion");
         b.Property(x => x.CreatedAt).HasColumnName(prefix + "CreatedAt").HasPrecision(7);
         b.Property(x => x.UpdatedAt).HasColumnName(prefix + "UpdatedAt").HasPrecision(7);
+        b.Property(x => x.LocationId).HasColumnName(prefix + "LocationId");
+        b.Property(x => x.LocationDescription).HasColumnName(prefix + "LocationDescription").HasMaxLength(256);
+        b.Property(x => x.LocationRecordedAt).HasColumnName(prefix + "LocationRecordedAt").HasPrecision(7);
     }
 }

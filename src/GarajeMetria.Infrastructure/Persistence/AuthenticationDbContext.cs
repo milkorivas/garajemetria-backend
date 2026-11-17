@@ -82,6 +82,16 @@ public sealed class AuthenticationDbContext(DbContextOptions<AuthenticationDbCon
     public DbSet<LprDevice> LprDevices => Set<LprDevice>();
     public DbSet<LprEventRow> LprEvents => Set<LprEventRow>();
     public DbSet<DeviceAdministrationAuditRow> DeviceAdministrationAudits => Set<DeviceAdministrationAuditRow>();
+    public DbSet<StayPolicyRow> StayPolicies => Set<StayPolicyRow>();
+    public DbSet<StayConfigurationRow> StayConfiguration => Set<StayConfigurationRow>();
+    public DbSet<VehicleStayPartitionRow> VehicleStayPartitions => Set<VehicleStayPartitionRow>();
+    public DbSet<VehicleStayRow> VehicleStays => Set<VehicleStayRow>();
+    public DbSet<StayProjectionRevisionRow> StayProjectionRevisions => Set<StayProjectionRevisionRow>();
+    public DbSet<StayLineageRow> StayLineage => Set<StayLineageRow>();
+    public DbSet<StayObservationAssignmentRow> StayObservationAssignments => Set<StayObservationAssignmentRow>();
+    public DbSet<StayDayClosureRow> StayDayClosures => Set<StayDayClosureRow>();
+    public DbSet<LprDeviceLocationRow> LprDeviceLocations => Set<LprDeviceLocationRow>();
+    public DbSet<LprObservationLocationRow> LprObservationLocations => Set<LprObservationLocationRow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -1,12 +1,14 @@
 using GarajeMetria.Application.Authentication;
 using GarajeMetria.Application.Diagnostics;
 using GarajeMetria.Application.Lpr;
+using GarajeMetria.Application.Stays;
 using GarajeMetria.Application.Users;
 using GarajeMetria.Application.Workshops;
 using GarajeMetria.Infrastructure.Authentication;
 using GarajeMetria.Infrastructure.Diagnostics;
 using GarajeMetria.Infrastructure.Lpr;
 using GarajeMetria.Infrastructure.Persistence;
+using GarajeMetria.Infrastructure.Stays;
 using GarajeMetria.Infrastructure.Workshops;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -34,6 +36,7 @@ public static class DependencyInjection
         services.AddSingleton(directory);
         services.AddSingleton(jwt);
         services.TryAddSingleton(TimeProvider.System);
+        services.AddStayProcessing(configuration, runWorker: true);
         var catalog = configuration.GetSection("WorkshopCatalog").Get<WorkshopCatalogOptions>() ?? new();
         if (catalog.IntervalSeconds is <= 0 or > 600 || catalog.TimeoutSeconds is <= 0 or > 120 ||
             catalog.IntervalSeconds + catalog.TimeoutSeconds > 840 || catalog.DefaultPageSize <= 0 ||
@@ -120,7 +123,7 @@ public static class DependencyInjection
         services.AddScoped<ILprRateLimitStore, LprRateLimitStore>();
         services.AddScoped<LprRepository>();
         services.AddScoped<ILprDeviceRepository>(sp => sp.GetRequiredService<LprRepository>());
-        services.AddScoped<ILprEventRepository>(sp => sp.GetRequiredService<LprRepository>());
+        services.AddScoped<ILprEventRepository, PolicyCheckedLprEventRepository>();
         services.AddScoped<ILprDeviceAdministrationQuery>(sp => sp.GetRequiredService<LprRepository>());
         services.AddScoped<IDeviceAuthorizationQuery>(sp => sp.GetRequiredService<LprRepository>());
         services.AddScoped<IDeviceAdministrationAuditRepository>(sp => sp.GetRequiredService<LprRepository>());
@@ -133,6 +136,46 @@ public static class DependencyInjection
         services.AddSingleton<ICorporateDirectory, LdapCorporateDirectory>();
         services.AddHostedService<SharedPolicyStartup>();
         services.AddHostedService<AuthenticationCleanupService>();
+        return services;
+    }
+
+    public static IServiceCollection AddStayMaintenance(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddLogging();
+        var persistence = configuration.GetSection("Lpr").Get<LprPersistenceOptions>() ?? new();
+        persistence.Validate();
+        services.AddSingleton(persistence);
+        var connection = configuration.GetConnectionString("Authentication");
+        if (string.IsNullOrWhiteSpace(connection)) throw new InvalidOperationException("Maintenance requires a persistence connection.");
+        services.AddDbContext<AuthenticationDbContext>(o => o.UseSqlServer(connection, sql => sql.CommandTimeout(persistence.RequestTimeoutSeconds))
+            .AddInterceptors(new PersistenceErrorInterceptor(), new PersistenceConnectionInterceptor()));
+        services.AddScoped<ILprClock, LprClock>();
+        return services.AddStayProcessing(configuration, runWorker: false);
+    }
+
+    private static IServiceCollection AddStayProcessing(this IServiceCollection services, IConfiguration configuration, bool runWorker)
+    {
+        var stays = configuration.GetSection("Stays").Get<StayOptions>() ?? new();
+        stays.Validate();
+        services.AddSingleton(stays);
+        services.AddSingleton<IWorkshopCalendar>(new WorkshopCalendar());
+        services.AddHostedService<StayConfigurationStartup>();
+        GarajeMetria.Application.DependencyInjection.AddStayClosureValidation(services);
+        services.AddScoped<IStayPolicyRepository, StayPolicyRepository>();
+        services.AddSingleton(new StayProcessingLimits(stays.ObservationPageSize, stays.ContextObservationLimit, stays.ContextStayLimit));
+        services.AddSingleton<IStayProcessingObserver, StayTelemetry>();
+        services.AddScoped<StayRepository>();
+        services.AddScoped<IStayRepository>(sp => sp.GetRequiredService<StayRepository>());
+        services.AddScoped<IStayObservationQuery>(sp => sp.GetRequiredService<StayRepository>());
+        services.AddScoped<IStayClosureRepository, StayClosureRepository>();
+        services.AddScoped<IStayClosureUnitOfWork, StayClosureUnitOfWork>();
+        services.AddScoped<IStayMaintenanceStore, StayMaintenanceStore>();
+        services.AddScoped<IStayDiagnostics, StayDiagnostics>();
+        services.AddScoped<IObservationAuditQuery, ObservationAuditQuery>();
+        services.AddScoped<IStayRecalculationService, StayRecalculationService>();
+        services.AddScoped<IObservationLocationWriter, ObservationLocationWriter>();
+        if (runWorker) services.AddHostedService<StayDailyClosureWorker>();
         return services;
     }
 }

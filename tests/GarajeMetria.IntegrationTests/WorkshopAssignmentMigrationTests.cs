@@ -12,6 +12,10 @@ public sealed class WorkshopAssignmentMigrationTests(SqlFixture database) : ICla
     {
         await using var db = database.CreateContext();
         var migrator = db.GetService<IMigrator>();
+        // Remove only the unused synthetic fixture policy before exercising the older schema.
+        Assert.Empty(await db.VehicleStayPartitions.ToArrayAsync());
+        await db.StayConfiguration.ExecuteDeleteAsync();
+        await db.StayPolicies.ExecuteDeleteAsync();
         // This fixture owns a fresh synthetic database. Exercise the actual pre-RF-002 schema.
         await migrator.MigrateAsync("20261029143036_WorkshopCatalog");
         var first = Guid.NewGuid();

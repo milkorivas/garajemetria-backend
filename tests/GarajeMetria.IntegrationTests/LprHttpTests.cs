@@ -126,6 +126,8 @@ public sealed partial class LprHttpTests(SqlFixture database) : IClassFixture<Sq
         var login = (await scope.ServiceProvider.GetRequiredService<ISender>().Send(new LoginCommand("user", "synthetic"))).Value!;
         using var advisor = Client(factory, login.Tokens.Access.Value);
         Assert.Equal(HttpStatusCode.Forbidden, (await advisor.GetAsync("/api/lpr/devices")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await MutationAsync(advisor, created.Id, "location", created.Tag,
+            "{\"locationDescription\":\"Synthetic\"}", HttpMethod.Put)).StatusCode);
     }
 
     [SqlFact]
