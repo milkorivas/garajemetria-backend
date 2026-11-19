@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using GarajeMetria.Api.Authentication;
 using GarajeMetria.Api.Diagnostics;
+using GarajeMetria.Api.History;
 using GarajeMetria.Api.Lpr;
 using GarajeMetria.Api.Users;
 using GarajeMetria.Api.Workshops;
@@ -59,7 +60,10 @@ try
     builder.Services.AddAuthentication("Bearer").AddScheme<AuthenticationSchemeOptions, SessionBearerHandler>("Bearer", _ => { });
     builder.Services.AddDeviceOAuth();
     builder.Services.AddSingleton<LprTelemetry>();
+    builder.Services.AddSingleton<HistoryTelemetry>();
     builder.Services.AddAuthorizationBuilder().SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+    builder.Services.AddAuthorizationBuilder().AddPolicy("HistoryReader", policy => policy.AddAuthenticationSchemes("Bearer")
+        .RequireAuthenticatedUser().RequireClaim("role", "administrator", "advisor"));
     builder.Services.AddCors(o => o.AddDefaultPolicy(p => p.WithOrigins(http.AllowedOrigins)
         .AllowCredentials().WithMethods("GET", "POST", "PUT", "OPTIONS")
         .WithHeaders("Content-Type", "Authorization", "If-Match", AuthenticationEndpoints.CsrfHeader).WithExposedHeaders("ETag", "Location", "Retry-After")));
@@ -77,6 +81,7 @@ try
         o.AddOperationTransformer<WorkshopOpenApi>();
         o.AddOperationTransformer<UserAdministrationOpenApi>();
         o.AddOperationTransformer<LprOpenApi>();
+        o.AddOperationTransformer<HistoryOpenApi>();
     });
     builder.Services.AddHealthDiagnostics();
     var app = builder.Build();
@@ -93,6 +98,7 @@ try
         app.MapOpenApi().AllowAnonymous();
     }
     app.UseRouting();
+    app.UseMiddleware<HistoryTelemetryMiddleware>();
     app.UseCors();
     app.UseMiddleware<LprFailureMiddleware>();
     app.UseMiddleware<GarajeMetria.Api.Lpr.LprIpRateLimitMiddleware>();
@@ -107,6 +113,7 @@ try
     app.MapLprAdministrationEndpoints();
     app.MapDeviceOAuth();
     app.MapLprEventEndpoints();
+    app.MapHistoryEndpoints();
     app.MapHealthEndpoints();
     app.Run();
 }

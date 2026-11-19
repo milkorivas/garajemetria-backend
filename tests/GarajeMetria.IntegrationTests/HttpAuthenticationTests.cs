@@ -200,7 +200,8 @@ public sealed class HttpAuthenticationTests(SqlFixture database) : IClassFixture
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var paths = document.RootElement.GetProperty("paths");
-        Assert.Equal(18, paths.EnumerateObject().Count());
+        // RF-005 adds nine paths and GET on the existing LPR ingestion path.
+        Assert.Equal(27, paths.EnumerateObject().Count());
         Assert.True(paths.GetProperty("/connect/token").TryGetProperty("post", out _));
         Assert.True(paths.GetProperty("/api/lpr/devices").TryGetProperty("post", out _));
         Assert.True(paths.GetProperty("/api/lpr/events").TryGetProperty("post", out _));

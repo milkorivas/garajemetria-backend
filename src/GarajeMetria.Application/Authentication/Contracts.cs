@@ -7,7 +7,8 @@ public enum FailureCode
     InvalidInput, InvalidCredentials, NoRole, NoWorkshop, InactiveWorkshop, SessionEnded,
     DirectoryUnavailable, ServiceUnavailable, InternalError, OperationOutcomeUnknown, RateLimited,
     Forbidden, ResourceNotFound, AssignmentConflict, PreconditionFailed,
-    InvalidDeviceToken, DeviceForbidden, DeviceConflict, EventConflict, CaptureOutsideWindow
+    InvalidDeviceToken, DeviceForbidden, DeviceConflict, EventConflict, CaptureOutsideWindow,
+    HistoryProjectionPending, HistoryAuditUnavailable, HistoryExportLimitExceeded, HistoryExportSizeExceeded
 }
 
 public sealed record Failure(FailureCode Code, int? RetryAfterSeconds = null);

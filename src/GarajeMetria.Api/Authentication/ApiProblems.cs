@@ -21,6 +21,10 @@ public static class ApiProblems
         FailureCode.ServiceUnavailable => Create(503, "service_unavailable", "El servicio no está disponible temporalmente. Inténtalo de nuevo más tarde", "Servicio no disponible"),
         FailureCode.OperationOutcomeUnknown => Create(503, "operation_outcome_unknown", "No se pudo confirmar el resultado de la operación. Comprueba su estado antes de volver a intentarlo", "Resultado no confirmado"),
         FailureCode.RateLimited => Create(429, "rate_limit_exceeded", "Demasiados intentos. Inténtalo de nuevo más tarde"),
+        FailureCode.HistoryProjectionPending => Create(503, "history_projection_pending", "El historial está pendiente de consolidación. Inténtalo de nuevo."),
+        FailureCode.HistoryAuditUnavailable => Create(503, "history_audit_unavailable", "No se pudo registrar el acceso. No se entregan datos."),
+        FailureCode.HistoryExportLimitExceeded => Create(422, "history_export_limit_exceeded", "La exportación supera 10.000 filas. Reduce los filtros."),
+        FailureCode.HistoryExportSizeExceeded => Create(422, "history_export_size_exceeded", "La exportación supera el tamaño permitido. Reduce los filtros."),
         _ => Create(500, "internal_error", "Se ha producido un error interno. Contacta con soporte si el problema persiste", "Error interno")
     };
 

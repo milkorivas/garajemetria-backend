@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.AddSingleton(directory);
         services.AddSingleton(jwt);
         services.TryAddSingleton(TimeProvider.System);
+        services.AddHistory(configuration);
         services.AddStayProcessing(configuration, runWorker: true);
         var catalog = configuration.GetSection("WorkshopCatalog").Get<WorkshopCatalogOptions>() ?? new();
         if (catalog.IntervalSeconds is <= 0 or > 600 || catalog.TimeoutSeconds is <= 0 or > 120 ||
@@ -136,6 +137,24 @@ public static class DependencyInjection
         services.AddSingleton<ICorporateDirectory, LdapCorporateDirectory>();
         services.AddHostedService<SharedPolicyStartup>();
         services.AddHostedService<AuthenticationCleanupService>();
+        return services;
+    }
+
+    public static IServiceCollection AddHistory(this IServiceCollection services, IConfiguration configuration)
+    {
+        var options = configuration.GetSection("History").Get<GarajeMetria.Application.History.HistoryOptions>() ?? new();
+        options.Validate();
+        services.AddSingleton(options);
+        services.AddSingleton<HistoryInstanceGate>();
+        services.AddSingleton<GarajeMetria.Application.History.IHistoryCalendar, History.HistoryCalendar>();
+        services.AddScoped<HistoryStore>();
+        services.AddScoped<GarajeMetria.Application.History.IHistoryCatalogQuery>(sp => sp.GetRequiredService<HistoryStore>());
+        services.AddScoped<GarajeMetria.Application.History.IHistoryReadSession>(sp => sp.GetRequiredService<HistoryStore>());
+        services.AddScoped<GarajeMetria.Application.History.IHistoryClosureDiscovery>(sp => sp.GetRequiredService<HistoryStore>());
+        services.AddScoped<GarajeMetria.Application.History.IHistoryAccessAuditStore>(sp => sp.GetRequiredService<HistoryStore>());
+        services.AddScoped<GarajeMetria.Application.History.IHistoryQuery, HistoryQuery>();
+        services.AddScoped<GarajeMetria.Application.History.IHistoryAdmission, HistoryAdmission>();
+        services.AddScoped<GarajeMetria.Application.History.IHistoryWorkbookWriter, History.HistoryWorkbookWriter>();
         return services;
     }
 

@@ -68,7 +68,8 @@ public sealed partial class LprHttpTests
                 foreach (var response in operation.Value.GetProperty("responses").EnumerateObject())
                     Assert.True(response.Value.GetProperty("headers").TryGetProperty("Cache-Control", out _));
                 var security = operation.Value.GetProperty("security").ToString();
-                Assert.Contains(path.Name == "/connect/token" ? "LprClientBasic" : path.Name == "/api/lpr/events" ? "LprOAuth" : "Bearer", security);
+                Assert.Contains(path.Name == "/connect/token" ? "LprClientBasic" :
+                    path.Name == "/api/lpr/events" && operation.Name == "post" ? "LprOAuth" : "Bearer", security);
                 Assert.DoesNotContain("X-CSRF", operation.Value.ToString());
             }
         var events = paths.GetProperty("/api/lpr/events").GetProperty("post");

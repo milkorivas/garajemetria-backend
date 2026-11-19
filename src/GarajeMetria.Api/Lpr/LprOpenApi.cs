@@ -8,6 +8,7 @@ public sealed class LprOpenApi : IOpenApiOperationTransformer
 {
     public Task TransformAsync(OpenApiOperation operation, OpenApiOperationTransformerContext context, CancellationToken ct)
     {
+        if (context.Description.ActionDescriptor.EndpointMetadata.OfType<History.HistoryMetadata>().Any()) return Task.CompletedTask;
         var name = operation.OperationId;
         if (name is null || name != "IssueLprToken" && !name.Contains("Lpr", StringComparison.Ordinal)) return Task.CompletedTask;
         var document = context.Document!;

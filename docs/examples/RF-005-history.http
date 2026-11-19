@@ -1,0 +1,44 @@
+@baseUrl = https://localhost:7043
+# Sustituir mediante el gestor privado del cliente HTTP; nunca versionar tokens.
+@accessToken = REPLACE_WITH_PRIVATE_USER_ACCESS_TOKEN
+@workshopId = synthetic-workshop
+@stayId = 00000000-0000-4000-8000-000000000001
+
+### Eventos del día actual; total exacto y salto de página.
+GET {{baseUrl}}/api/lpr/events?workshopIds={{workshopId}}&pageNumber=2&pageSize=50&order=desc
+Authorization: Bearer {{accessToken}}
+
+### Inválidas sin estancia, por texto original literal.
+GET {{baseUrl}}/api/lpr/events?workshopIds={{workshopId}}&originalText=synthetic-invalid&plateStatus=invalid&association=unassigned
+Authorization: Bearer {{accessToken}}
+
+### Investigar recepción; el orden sigue por captura.
+GET {{baseUrl}}/api/lpr/events?workshopIds={{workshopId}}&fromDate=2026-11-19&throughDate=2026-11-19&timeBasis=receipt&confidenceMode=range&confidenceMin=0
+Authorization: Bearer {{accessToken}}
+
+### Estancias que coinciden con el período.
+GET {{baseUrl}}/api/stays?workshopIds={{workshopId}}&fromDate=2026-11-19&throughDate=2026-11-19
+Authorization: Bearer {{accessToken}}
+
+### Presencia vigente, preparada incluso con cierre diario retrasado.
+GET {{baseUrl}}/api/vehicles/present?workshopIds={{workshopId}}
+Authorization: Bearer {{accessToken}}
+
+### Recorrido exacto; Admin puede repetir workshopIds o no seleccionarlos.
+GET {{baseUrl}}/api/vehicles/timeline?plate=0012BCD&workshopIds={{workshopId}}
+Authorization: Bearer {{accessToken}}
+
+### Observaciones completas y paginadas de la identidad resuelta.
+GET {{baseUrl}}/api/stays/{{stayId}}/observations?pageSize=50
+Authorization: Bearer {{accessToken}}
+
+### Excel de todas las coincidencias, sin paginación; máximo 10.000 filas.
+POST {{baseUrl}}/api/history/exports
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "kind": "events",
+  "filters": { "workshopIds": ["{{workshopId}}"], "plate": "012", "plateMatch": "contains" },
+  "order": "asc"
+}

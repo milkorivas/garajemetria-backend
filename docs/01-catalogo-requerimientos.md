@@ -22,12 +22,19 @@ Para RF-004, consultar
 [DESIGN-004 — Entradas, salidas y estancias](design/DESIGN-004-arrivals-departures-and-stays.md),
 con decisiones P004-01 a P004-03 resueltas y backend de cálculo integrado.
 Las evidencias y límites se registran en TASKS-004 / 18 y 19.
+Para RF-005, consultar
+[DESIGN-005 — Consulta de vehículos e historial](design/DESIGN-005-vehicle-history-and-search.md),
+con contratos de consulta, exportación Excel y auditoría; implementación y
+verificación registradas en TASKS-005.
 
 Los planes de implementación se mantienen en `tasks/`:
 [TASKS-001 — Autenticación](tasks/TASKS-001-authentication.md),
 [TASKS-002 — Roles y acceso a talleres](tasks/TASKS-002-roles-and-workshop-access.md),
-[TASKS-003 — Recepción de eventos LPR](tasks/TASKS-003-lpr-event-ingestion.md) y
-[TASKS-004 — Entradas, salidas y estancias](tasks/TASKS-004-arrivals-departures-and-stays.md).
+[TASKS-003 — Recepción de eventos LPR](tasks/TASKS-003-lpr-event-ingestion.md),
+[TASKS-004 — Entradas, salidas y estancias](tasks/TASKS-004-arrivals-departures-and-stays.md) y
+[TASKS-005 — Consulta de vehículos e historial](tasks/TASKS-005-vehicle-history-and-search.md).
+TASKS-005 contiene 24 tareas y trazabilidad de los 17 CA/CP de RF-005;
+su registro distingue implementación, pruebas efectivas y límites externos.
 TASKS-004 contiene 24 tareas y trazabilidad de los 27 CA/CP. El backend integra
 dominio puro, recálculo incremental, políticas históricas, SQL transaccional,
 ubicación auditable, ingesta síncrona, cierre supervisado y mantenimiento
@@ -107,14 +114,14 @@ correspondientes. El primer tramo acordado es RF-001, autenticación.
 | **ID** | **Requerimiento** | **Prioridad** | **Estado** | **Especificación** |
 | --- | --- | --- | --- | --- |
 | RF-001 | Autenticación | Alta | Definido | [RF-001-authentication.md](requirements/RF-001-authentication.md) |
-| RF-002 | Roles y acceso a talleres | Por definir | Definido | [RF-002-roles-and-workshop-access.md](requirements/RF-002-roles-and-workshop-access.md) |
-| RF-003 | Recepción de eventos LPR | Por definir | Definido | [RF-003-lpr-event-ingestion.md](requirements/RF-003-lpr-event-ingestion.md) |
+| RF-002 | Roles y acceso a talleres | Alta | Definido | [RF-002-roles-and-workshop-access.md](requirements/RF-002-roles-and-workshop-access.md) |
+| RF-003 | Recepción de eventos LPR | Alta | Definido | [RF-003-lpr-event-ingestion.md](requirements/RF-003-lpr-event-ingestion.md) |
 | RF-004 | Entradas, salidas y estancias | Alta | Backend implementado; límites y evidencias en TASKS-004 | [RF-004-arrivals-departures-and-stays.md](requirements/RF-004-arrivals-departures-and-stays.md) |
-| RF-005 | Consulta de vehículos e historial | Por definir | En definición | `requirements/RF-005-vehicle-history-and-search.md` |
-| RF-006 | Correcciones manuales y auditoría | Por definir | En definición | `requirements/RF-006-manual-corrections-and-audit.md` |
-| RF-007 | Almacenamiento y consulta de imágenes | Por definir | En definición | `requirements/RF-007-images.md` |
-| RF-008 | Panel de administración | Por definir | Pendiente | `requirements/RF-008-administration-dashboard.md` |
-| RF-009 | Catálogo corporativo de talleres | Por definir | En definición | [RF-009-workshop-catalog.md](requirements/RF-009-workshop-catalog.md) |
+| RF-005 | Consulta de vehículos e historial | Media | Backend implementado; verificaciones y límites en TASKS-005 | [RF-005-vehicle-history-and-search.md](requirements/RF-005-vehicle-history-and-search.md) |
+| RF-006 | Correcciones manuales y auditoría | Media | En definición | `requirements/RF-006-manual-corrections-and-audit.md` |
+| RF-007 | Almacenamiento y consulta de imágenes | Media | En definición | `requirements/RF-007-images.md` |
+| RF-008 | Panel de administración | Media | Media | `requirements/RF-008-administration-dashboard.md` |
+| RF-009 | Catálogo corporativo de talleres | Media | En definición | [RF-009-workshop-catalog.md](requirements/RF-009-workshop-catalog.md) |
 
 Autenticación incluye login contra Active Directory local, tokens JWT de acceso
 y refrescamiento, renovación y ciclo de sesión. Roles y acceso a talleres incluye
@@ -150,14 +157,14 @@ disponibilidad acordados.
 
 | **ID** | **Requerimiento** | **Prioridad** | **Estado** | **Especificación** |
 | --- | --- | --- | --- | --- |
-| RNF-001 | Seguridad y protección de datos | Por definir | En definición | `requirements/RNF-001-security-and-data-protection.md` |
-| RNF-002 | Rendimiento y capacidad | Por definir | Pendiente | `requirements/RNF-002-performance-and-capacity.md` |
-| RNF-003 | Fiabilidad e integridad de datos | Por definir | En definición | `requirements/RNF-003-reliability-and-data-integrity.md` |
-| RNF-004 | Disponibilidad y recuperación | Por definir | Pendiente | `requirements/RNF-004-availability-and-recovery.md` |
-| RNF-005 | Mantenibilidad, arquitectura y pruebas | Por definir | En definición | `requirements/RNF-005-maintainability-architecture-and-testing.md` |
-| RNF-006 | Independencia del proveedor de base de datos | Por definir | En definición | `requirements/RNF-006-database-independence.md` |
-| RNF-007 | Observabilidad y operación | Por definir | En definición | `requirements/RNF-007-observability-and-operations.md` |
-| RNF-008 | Calidad y consistencia de los contratos API | Por definir | En definición | `requirements/RNF-008-api-contract-quality.md` |
+| RNF-001 | Seguridad y protección de datos | Alta | En definición | `requirements/RNF-001-security-and-data-protection.md` |
+| RNF-002 | Rendimiento y capacidad | Alta | Pendiente | `requirements/RNF-002-performance-and-capacity.md` |
+| RNF-003 | Fiabilidad e integridad de datos | Alta | En definición | `requirements/RNF-003-reliability-and-data-integrity.md` |
+| RNF-004 | Disponibilidad y recuperación | Alta | Pendiente | `requirements/RNF-004-availability-and-recovery.md` |
+| RNF-005 | Mantenibilidad, arquitectura y pruebas | Alta | En definición | `requirements/RNF-005-maintainability-architecture-and-testing.md` |
+| RNF-006 | Independencia del proveedor de base de datos | Baja | En definición | `requirements/RNF-006-database-independence.md` |
+| RNF-007 | Observabilidad y operación | Media | En definición | `requirements/RNF-007-observability-and-operations.md` |
+| RNF-008 | Calidad y consistencia de los contratos API | Media | En definición | `requirements/RNF-008-api-contract-quality.md` |
 
 Rendimiento y capacidad requiere acordar carga y tiempos de respuesta;
 disponibilidad y recuperación requiere acordar objetivos de servicio y

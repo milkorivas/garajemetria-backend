@@ -15,6 +15,10 @@ public static class DependencyInjection
         services.AddValidatorsFromAssemblyContaining<LoginValidator>(filter: result =>
             result.ValidatorType != typeof(GarajeMetria.Application.Stays.CloseStayDayValidator));
         services.AddScoped<GarajeMetria.Application.Users.UserAdministrationAccess>();
+        services.AddScoped<History.HistoryAccess>();
+        services.AddScoped<History.HistoryTime>();
+        services.AddScoped<History.HistoryService>();
+        services.AddTransient(typeof(IPipelineBehavior<,>), typeof(History.HistoryValidationBehavior<,>));
         services.AddScoped<GarajeMetria.Application.Lpr.DeviceAdministration>();
         services.AddScoped<GarajeMetria.Application.Lpr.DeviceAccess>();
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));

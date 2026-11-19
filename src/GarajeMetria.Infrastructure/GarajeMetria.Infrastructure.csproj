@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.1.1" />
     <PackageReference Include="OpenIddict.Core" Version="$(OpenIddictVersion)" />
     <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="$(OpenIddictVersion)" />
     <InternalsVisibleTo Include="GarajeMetria.IntegrationTests" />

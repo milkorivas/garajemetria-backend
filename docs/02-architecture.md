@@ -39,7 +39,15 @@ ingesta síncrona, cierre recuperable y mantenimiento reanudable. La política
 activa se verifica bajo el bloqueo de catálogo; los duplicados conservan el
 recibo original sin recalcular ni resolver de nuevo la ubicación. API y worker
 confirman cada unidad de forma atómica. No se activa política al arrancar.
-La consulta HTTP de historial y las correcciones se concretarán en RF-005/006.
+La consulta HTTP de historial se diseña en
+[DESIGN-005 — Consulta de vehículos e historial](design/DESIGN-005-vehicle-history-and-search.md):
+puertos de lectura en Application, proyecciones en Infrastructure, paginación
+con total exacto, cierre lógico antes de lectura y exportación Excel acotada.
+La auditoría de acceso se conserva sin borrado automático; si no se confirma
+su registro, no se entregan datos y se devuelve 503.
+[TASKS-005](tasks/TASKS-005-vehicle-history-and-search.md) registra el backend,
+OpenAPI y la verificación efectiva sobre datos sintéticos; no equivale a una
+activación corporativa. Las correcciones se concretarán en RF-006.
 Operación: [runbook de estancias](runbooks/stays.md) y
 [configuración](configuration/stays-configuration.md). Las verificaciones reales
 y sus límites se registran en el plan; no equivalen a un despliegue corporativo.
